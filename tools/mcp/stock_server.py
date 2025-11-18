@@ -459,5 +459,5 @@ async def get_recommendations(ticker: str, months_back: int = 12) -> str:
 if __name__ == "__main__":
     mcp.run(
         transport="http",
-        port=8000
+        port=8001
     )
