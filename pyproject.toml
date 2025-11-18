@@ -5,7 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastmcp>=2.13.1",
     "ipykernel>=7.1.0",
     "openai>=2.7.2",
     "openai-agents[viz]>=0.5.1",
+    "pandas>=2.3.3",
+    "yfinance==0.2.62",
 ]
