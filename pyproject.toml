@@ -7,8 +7,10 @@ requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=2.13.1",
     "ipykernel>=7.1.0",
+    "limiter>=0.5.0",
     "openai>=2.7.2",
     "openai-agents[viz]>=0.5.1",
     "pandas>=2.3.3",
+    "tenacity>=9.1.2",
     "yfinance==0.2.62",
 ]

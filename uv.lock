@@ -914,6 +914,19 @@ wheels = [
 ]
 
 [[package]]
+name = "limiter"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "strenum" },
+    { name = "token-bucket" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5f/76/3fcdddbac1a64a65630a0fc54b7b372d61b67da1fadf55649f8ca3d7d61e/limiter-0.5.0.tar.gz", hash = "sha256:71b9e972e04f1dcf3fa9b541ca3a16dcc1be6ce0d6a12407b25a0888a57e612f", size = 10212, upload-time = "2024-02-15T01:31:56.908Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/3a/6a9b416113254840870d8db98fb7018957b1324898e65874cb1844f69dea/limiter-0.5.0-py2.py3-none-any.whl", hash = "sha256:920ee7587596b6421690ee2009a755a9970b743001567ae1005310d9b654985c", size = 10120, upload-time = "2024-02-15T01:31:53.449Z" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1951,15 +1964,35 @@ wheels = [
 ]
 
 [[package]]
+name = "strenum"
+version = "0.4.15"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/ad/430fb60d90e1d112a62ff57bdd1f286ec73a2a0331272febfddd21f330e1/StrEnum-0.4.15.tar.gz", hash = "sha256:878fb5ab705442070e4dd1929bb5e2249511c0bcf2b0eeacf3bcd80875c82eff", size = 23384, upload-time = "2023-06-29T22:02:58.399Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/81/69/297302c5f5f59c862faa31e6cb9a4cd74721cd1e052b38e464c5b402df8b/StrEnum-0.4.15-py3-none-any.whl", hash = "sha256:a30cda4af7cc6b5bf52c8055bc4bf4b2b6b14a93b574626da33df53cf7740659", size = 8851, upload-time = "2023-06-29T22:02:56.947Z" },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036, upload-time = "2025-04-02T08:25:09.966Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248, upload-time = "2025-04-02T08:25:07.678Z" },
+]
+
+[[package]]
 name = "test-showcase"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastmcp" },
     { name = "ipykernel" },
+    { name = "limiter" },
     { name = "openai" },
     { name = "openai-agents", extra = ["viz"] },
     { name = "pandas" },
+    { name = "tenacity" },
     { name = "yfinance" },
 ]
 
@@ -1967,10 +2000,21 @@ dependencies = [
 requires-dist = [
     { name = "fastmcp", specifier = ">=2.13.1" },
     { name = "ipykernel", specifier = ">=7.1.0" },
+    { name = "limiter", specifier = ">=0.5.0" },
     { name = "openai", specifier = ">=2.7.2" },
     { name = "openai-agents", extras = ["viz"], specifier = ">=0.5.1" },
     { name = "pandas", specifier = ">=2.3.3" },
+    { name = "tenacity", specifier = ">=9.1.2" },
     { name = "yfinance", specifier = "==0.2.62" },
+]
+
+[[package]]
+name = "token-bucket"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b7/6d/386ed0cfb7f3c2e0311a96b3884a2ba98a7b958344f51c7cce0b1c7bbb0f/token_bucket-0.3.0.tar.gz", hash = "sha256:979571c99db2ff9e651f2b2146a62b2ebadf7de6c217a8781698282976cb675f", size = 6735, upload-time = "2021-06-30T17:39:44.314Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/ce/61ee52521766059d2c2537e85ba5f9773313e74b86df14652a61dd2e990e/token_bucket-0.3.0-py2.py3-none-any.whl", hash = "sha256:6df24309e3cf5b808ae5ef714a3191ec5b54f48c34ef959e4882eef140703369", size = 9459, upload-time = "2021-06-30T17:39:42.943Z" },
 ]
 
 [[package]]
