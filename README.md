@@ -30,7 +30,9 @@ The system operates in a two-stage pipeline:
 
 ## 1. The Research Agent 🕵️‍♂️
 
-Located in `nb/agent.ipynb`, the Deal Sourcing Agent is built using a proprietary agentic framework powered by `gpt-5.1`. It acts as the initial gatherer of intelligence, compiling a comprehensive "memo-like" writeup on a target company.
+Located in `nb/agent.ipynb`, the Equity Research Agent is built using a proprietary agentic framework powered by `gpt-5.1`. It acts as the initial gatherer of intelligence, compiling a comprehensive "memo-like" writeup on a target company.
+
+![Research Agent](docs/research_agent.png)
 
 ### Capabilities & Tools
 The agent is equipped with a suite of tools to ensure exhaustive coverage:
@@ -66,6 +68,8 @@ The second stage involves a custom Small Language Model (SLM) fine-tuned specifi
     -   **Format:** Trained to output a `<think>` block followed by the verdict, encouraging the model to "reason" before deciding.
     -   **Performance:** Achieved minimal overfitting (Train/Eval loss gap ~0.01) and strong generalization on holdout sets.
 
+![Training Loss](docs/loss_curve.png)
+
 ## 📂 Project Structure
 
 ```text
@@ -74,9 +78,10 @@ winterfest_applied_ai_pe/
 │   ├── docs/                   # Internal documents for RAG (PDFs, etc.)
 │   ├── output/                 # Generated research reports
 │   ├── training_data_*.jsonl   # Synthetic datasets for fine-tuning
-│   └── ...
-├── helpers/                    # Utility scripts (LLM streaming, etc.)
+│   └── ...    
+├── docs/              
 ├── nb/
+│   ├── helpers/                # Utility scripts (LLM streaming, etc.)  
 │   ├── agent.ipynb             # Stage 1: Research Agent implementation
 │   ├── training_data_generator.ipynb # Generates synthetic training data
 │   └── training_recipe.ipynb   # Stage 2: Model Fine-tuning workflow
