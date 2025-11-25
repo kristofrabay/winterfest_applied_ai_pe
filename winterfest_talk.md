@@ -152,7 +152,7 @@ We didn't just want "an answer"; we wanted **OUR** answer.
 | **Style** | Generic Helpful Assistant | **Ruthless Investment Analyst** |
 | **Speed** | Slow (Reasoning API) | **Lightning Fast** |
 
-<!-- SUGGESTED IMAGE: The Training Loss Curve image showing how the model learned to think like an analyst -->
+<img src="docs/loss_curve.png" alt="Loss Curves" width="750">
 
 ---
 
