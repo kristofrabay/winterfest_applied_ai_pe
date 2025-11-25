@@ -54,7 +54,7 @@ We have witnessed a Cambrian explosion in AI capabilities. In just 36 months, we
 *   **[Sept-Nov 2025](https://openai.com/index/introducing-upgrades-to-codex/)**: Coding-specific snapshots of 'base' models
     *   *Capability:* Autonomous coding agents that can maintain context for days.
 *   **[Nov 2025](https://openai.com/index/gpt-5-1-codex-max/)** **GPT-5.1-Codex-Max**.
-    *   *Capability:* **The 100-Hour Agent.** Can work independently on complex tasks for over 4 days without human intervention.
+    *   *Capability:* **The 24-Hour Agent.** Can work independently on complex tasks for over a day without human intervention.
 
 ---
 
@@ -74,7 +74,19 @@ The agent autonomously decides which tool to use:
 3.  **📈 Stock Market MCP:** For live price history and financials.
 4.  **🐍 Code Interpreter:** For calculating valuation metrics on the fly.
 
-<!-- SUGGESTED IMAGE: A screenshot or diagram of the Agent Graph (nodes and edges) showing the flow of decision making -->
+<img src="docs/research_agent.png" alt="Agent Setup" height="200">
+
+### 🔧 Context Engineering: Optimizing Tool Use
+One of the biggest challenges in agentic systems is "context management."
+
+*   **The Problem:** Overloading the context window with too long prompts and too many tool definitions takes away space for analysis and more importantly - confuses the model.
+*   **The Solution:** **[Advanced Tool Use](https://www.anthropic.com/engineering/advanced-tool-use).**
+    *   *Strategy:* Don't just dump all tools. Use a "Router" or "Planner" step to select *only* the relevant tools for the current step.
+    *   *Optimization:* Combine reasoning and action. Instead of `Reason -> Tool Call -> Reason -> Tool Call`, allow the model to write a **script** that executes multiple steps at once.
+
+> "By enabling the model to write execution scripts across tools, we reduce the Reasoning-Action chain latency and cost." — *Inspired by Anthropic Engineering*
+
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Ff359296f770706608901eadaffbff4ca0b67874c-1999x1125.png&w=3840&q=75" alt="Advanced Tool Use Visualization" width="600">
 
 ---
 
