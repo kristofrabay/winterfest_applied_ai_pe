@@ -31,7 +31,12 @@
 
 ## ⏳ The Acceleration Era: A 3-Year Journey
 
-We have witnessed a Cambrian explosion in AI capabilities. In just 36 months, we moved from simple text completion to autonomous agents capable of deep research and reasoning.
+> **TL;DR:**  
+> **Diverging Paths to Excellence:**  
+> 1. **Fine-Tuning:** Some (like OpenAI) are creating specialized "snapshots" of models aligned to specific behaviors (e.g., Deep Research).  
+> 2. **Agentic Systems:** Others (like Anthropic) are building multi-agent collaborations where "Planner" and "Worker" models decompose tasks to achieve complex goals.
+
+We have witnessed an explosion in AI capabilities - in just 3 years, we moved from simple text completion to autonomous agents capable of deep research and reasoning.
 
 ### 2022-2023: The "API" Era 👶
 *   **[Nov 2022](https://openai.com/index/chatgpt/)** **gpt-3.5-turbo** launches. The world wakes up to AI.
@@ -60,6 +65,12 @@ We have witnessed a Cambrian explosion in AI capabilities. In just 36 months, we
 
 ## 🏗️ Stage 1: The Research Agent (Prototyping)
 
+> **TL;DR:**  
+> **Rapid Prototyping:**  
+> Solutions that took months to build in 2023 are now 10 lines of code. **Why?**  
+> *   **Capable Reasoning Models:** No more complex prompt chains to force logic.  
+> *   **Effective Tool Usage:** Models now natively understand when and how to call external APIs.
+
 To solve our Equity Research problem, we started with **Prototyping**. We built a "General Purpose" Research Agent using the best proprietary models available today.
 
 ### The Stack
@@ -77,6 +88,33 @@ The agent autonomously decides which tool to use:
 <img src="docs/research_agent.png" alt="Agent Setup" height="200">
 
 ### 🔧 Context Engineering: Optimizing Tool Use
+
+To get the best performance from our "General Purpose" Research Agent, we implemented a structured prompt engineering strategy.
+
+```xml
+<system_prompt>
+    <role_and_objective>
+        You are a research analyst conducting comprehensive research...
+        Your objective is to collect exhaustive, unbiased information...
+    </role_and_objective>
+
+    <analysis_scope>
+        # Competition
+        # Financial Analysis
+        # ...
+    </analysis_scope>
+
+    <tools>
+        # Internal / External search
+        # MCP servers
+    </tools>
+
+    <output_expectations>
+        Dos and Don'ts
+    </output_expectations>
+</system_prompt>
+```
+
 One of the biggest challenges in agentic systems is "context management."
 
 *   **The Problem:** Overloading the context window with too long prompts and too many tool definitions takes away space for analysis and more importantly - confuses the model.
@@ -91,6 +129,12 @@ One of the biggest challenges in agentic systems is "context management."
 ---
 
 ## 🧠 Stage 2: The Analyst Model (Customization)
+
+> **TL;DR:**  
+> **The Democratization of Fine-Tuning:**  
+> *   **Accessible:** New frameworks (Unsloth, Axolotl, MLX-Mac) allow fine-tuning SLMs on consumer hardware. Building your own model is now public knowledge.  
+> *   **Difficult:** The challenge has shifted from "How do I train?" to **"How do I get good data?"**
+> *   **SFT vs RL:** It's about designing data (Supervised Fine-Tuning) vs designing reward functions (Reinforcement Learning) to align with SMEs.
 
 While the Research Agent is powerful, it is **generic** and **expensive**. To scale, we needed a specialist.
 
@@ -116,8 +160,9 @@ We didn't just want "an answer"; we wanted **OUR** answer.
 
 We are no longer just "prompting" models. We are **architecting** systems.
 
-1.  **Use Frontier Models** (GPT-5.1) to **explore** and **prototype** (The Research Agent).
-2.  **Use Synthetic Data** to **capture** that intelligence.
-3.  **Fine-Tune SLMs** (Small Language Models) to **specialize** and **scale** (The Analyst Model).
+1.  **Pushing Limits:** We can take existing models to their absolute limits with clever **Context Engineering**.
+2.  **Creating New Value:** We can create infinite variations of specialized models using **Classical Data Science**.
+    *   *The Shift:* Spend 75% of your time on **Data** and **Reward Function Engineering**.
+    *   *The Goal:* Tremendous alignment with SMEs by defining exactly what is penalized and what is rewarded.
 
 *Welcome to the future of Applied AI.* ❄️
