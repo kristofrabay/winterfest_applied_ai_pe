@@ -74,9 +74,10 @@ We have witnessed an explosion in AI capabilities - in just 3 years, we moved fr
 To solve our Equity Research problem, we started with **Prototyping**. We built a "General Purpose" Research Agent using the best proprietary models available today.
 
 ### 3.1 The Stack
-*   **Model:** `GPT-5.1` (High Intelligence, High Cost)
-*   **Connectivity:** **Model Context Protocol (MCP)**
-    *   *Why MCP?* It allowed us to plug in Yahoo Finance, Internal Docs, and Web Search standardly.
+*   **Model:** `GPT-5.1`
+*   **Connectivity:** 
+    *   **Model Context Protocol (MCP)**
+    *   **Custom tools**
 
 ### 3.2 🛠️ Tools in Action
 The agent autonomously decides which tool to use:
@@ -144,6 +145,8 @@ We didn't just want "an answer"; we wanted **OUR** answer.
 *   **Context Engineering:** We utilized the Research Agent to generate thousands of synthetic "Reasoning Traces" (Chain of Thought).
 *   **Fine-Tuning:** We distilled this intelligence into a smaller, faster, open-source model (`Qwen3-4B-Thinking`).
 
+<img src="docs/loss_curve.png" alt="Loss Curves" width="750">
+
 ### 4.2 📚 Emerging Research in Specialized Fine-Tuning
 We are seeing a clear trend in the industry: **Small, specialized models are outperforming large generalists on narrow tasks.**
 
@@ -152,16 +155,6 @@ We are seeing a clear trend in the industry: **Small, specialized models are out
 3.  **[Web Deep Research (Oct 2025)](https://arxiv.org/pdf/2510.15862v3):** A 7B model fine-tuned for autonomous web navigation and research.
 
 > *Note on Architectures:* Even **OpenAI's Deep Research** follows this specialization pattern. It isn't just one giant model; it uses a (1) Search (high level, exploring) and a (2) Fetch (low level, deep dive) toolset, splitting high-level exploration from low-level reading.
-
-### 4.3 The Comparison
-| Feature | 🕵️‍♂️ Research Agent (Prototype) | 🧠 Analyst Model (Production) |
-| :--- | :--- | :--- |
-| **Model** | GPT-5.1 (Proprietary) | Qwen3-4B (Open Source) |
-| **Cost** | $$$ per run | ¢ per run |
-| **Style** | Generic Helpful Assistant | **Ruthless Investment Analyst** |
-| **Speed** | Slow (Reasoning API) | **Lightning Fast** |
-
-<img src="docs/loss_curve.png" alt="Loss Curves" width="750">
 
 ---
 
