@@ -15,11 +15,11 @@
 
 ## 📋 Agenda
 
-1.  **The Objective:** Why are we here?
-2.  **The Timeline:** From Chatbots to Autonomous Agents (2022-2025).
-3.  **Stage 1:** Building our Research Agent (Prototyping).
-4.  **Stage 2:** Creating our Custom Analyst Model.
-5.  **Conclusion:** The Future of Applied AI Architectures.
+1.  [**The Objective:** Why are we here?](#-objective)
+2.  [**The Timeline:** From Chatbots to Autonomous Agents (2022-2025).](#-the-acceleration-era-a-3-year-journey)
+3.  [**Stage 1:** Building our Research Agent (Prototyping).](#-stage-1-the-research-agent-prototyping)
+4.  [**Stage 2:** Creating our Custom Analyst Model.](#-stage-2-the-analyst-model-customization)
+5.  [**Conclusion:** The Future of Applied AI Architectures.](#-conclusion)
 
 ---
 
@@ -143,6 +143,15 @@ We didn't just want "an answer"; we wanted **OUR** answer.
 
 *   **Context Engineering:** We utilized the Research Agent to generate thousands of synthetic "Reasoning Traces" (Chain of Thought).
 *   **Fine-Tuning:** We distilled this intelligence into a smaller, faster, open-source model (`Qwen3-4B-Thinking`).
+
+### 📚 Emerging Research in Specialized Fine-Tuning
+We are seeing a clear trend in the industry: **Small, specialized models are outperforming large generalists on narrow tasks.**
+
+1.  **[xRouter (Oct 2025)](https://arxiv.org/pdf/2510.08439):** A 7B model fine-tuned specifically for **Tool Calling** and routing, optimizing cost-performance.
+2.  **[FARA-7B (Nov 2025)](https://www.microsoft.com/en-us/research/blog/fara-7b-an-efficient-agentic-model-for-computer-use/):** A Microsoft model fine-tuned for **Computer Use** (GUI navigation), proving specialized agents don't need 400B parameters.
+3.  **[Web Deep Research (Oct 2025)](https://arxiv.org/pdf/2510.15862v3):** A 7B model fine-tuned for autonomous web navigation and research.
+
+> *Note on Architectures:* Even **OpenAI's Deep Research** follows this specialization pattern. It isn't just one giant model; it uses a (1) Search (high level, exploring) and a (2) Fetch (low level, deep dive) toolset, splitting high-level exploration from low-level reading.
 
 ### The Comparison
 | Feature | 🕵️‍♂️ Research Agent (Prototype) | 🧠 Analyst Model (Production) |
