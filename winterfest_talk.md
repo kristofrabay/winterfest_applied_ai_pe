@@ -15,42 +15,42 @@
 
 ## 📋 Agenda
 
-1.  [**The Objective:** Why are we here?](#-objective)
-2.  [**The Timeline:** From Chatbots to Autonomous Agents (2022-2025).](#-the-acceleration-era-a-3-year-journey)
-3.  [**Stage 1:** Building our Research Agent (Prototyping).](#-stage-1-the-research-agent-prototyping)
-4.  [**Stage 2:** Creating our Custom Analyst Model.](#-stage-2-the-analyst-model-customization)
-5.  [**Conclusion:** The Future of Applied AI Architectures.](#-conclusion)
+1.  [**The Objective:** Why are we here?](#1-objective)
+2.  [**The Timeline:** From Chatbots to Autonomous Agents (2022-2025).](#2-the-acceleration-era-a-3-year-journey)
+3.  [**Stage 1:** Building our Research Agent (Prototyping).](#3-stage-1-the-research-agent-prototyping)
+4.  [**Stage 2:** Creating our Custom Analyst Model.](#4-stage-2-the-analyst-model-customization)
+5.  [**Conclusion:** The Future of Applied AI Architectures.](#5-conclusion)
 
 ---
 
-## 🎯 Objective
+## 1. 🎯 Objective <a name="1-objective"></a>
 
 **To demonstrate how modern AI capabilities enable rapid prototyping of complex workflows, and how one can leverage Context Engineering and Fine-Tuning to turn generic models into specialized enterprise tools.**
 
 ---
 
-## ⏳ The Acceleration Era: A 3-Year Journey
+## 2. ⏳ The Acceleration Era: A 3-Year Journey <a name="2-the-acceleration-era-a-3-year-journey"></a>
 
 > **TL;DR:**  
 > **Diverging Paths to Excellence:**  
 > 1. **Fine-Tuning:** Some (like OpenAI) are creating specialized "snapshots" of models aligned to specific behaviors (e.g., Deep Research).  
-> 2. **Agentic Systems:** Others (like Anthropic) are building multi-agent collaborations where "Planner" and "Worker" models decompose tasks to achieve complex goals.
+> 2. **Context Engineering of Agentic Systems:** Others (like Anthropic) are building multi-agent collaborations where "Planner" and "Worker" models decompose tasks to achieve complex goals.
 
 We have witnessed an explosion in AI capabilities - in just 3 years, we moved from simple text completion to autonomous agents capable of deep research and reasoning.
 
-### 2022-2023: The "API" Era 👶
+### 2.1 2022-2023: The "API" Era 👶
 *   **[Nov 2022](https://openai.com/index/chatgpt/)** **gpt-3.5-turbo** launches. The world wakes up to AI.
 *   **[June 2023](https://openai.com/blog/function-calling-and-other-api-updates):** **Function Calling**. LLMs get "hands" to touch external tools.
     *   *Impact:* We moved from brittle `regex` parsing to native tool execution.
 
-### 2024: The "Agentic" Shift 🧠
+### 2.2 2024: The "Agentic" Shift 🧠
 *   **[Sept 2024](https://openai.com/index/learning-to-reason-with-llms/):** **OpenAI o1-preview**. The first "Reasoning" model.
     *   *Shift:* Models start "thinking" before speaking.
 *   **[Oct 2024](https://github.com/openai/swarm):** **Agents SDK (Swarm)**. Orchestration becomes a first-class citizen.
 *   **[Nov 2024](https://www.anthropic.com/news/model-context-protocol):** **Anthropic MCP**. A universal standard for connecting AI to data.
     *   *Impact:* No more writing custom integrations for every data source.
 
-### 2025: Deep Research, Autonomy & Fine-tuning 🚀
+### 2.3 2025: Deep Research, Autonomy & Fine-tuning 🚀
 *   **[Jan 2025](https://github.com/deepseek-ai/DeepSeek-R1):** **DeepSeek R1**. Open-source reasoning matches proprietary models.
 *   **[Feb 2025](https://openai.com/index/introducing-deep-research/):** **OpenAI Deep Research**.
     *   *Capability:* A snapshot of an o3-fine-tune to navigate the web
@@ -63,7 +63,7 @@ We have witnessed an explosion in AI capabilities - in just 3 years, we moved fr
 
 ---
 
-## 🏗️ Stage 1: The Research Agent (Prototyping)
+## 3. 🏗️ Stage 1: The Research Agent (Prototyping) <a name="3-stage-1-the-research-agent-prototyping"></a>
 
 > **TL;DR:**  
 > **Rapid Prototyping:**  
@@ -73,12 +73,12 @@ We have witnessed an explosion in AI capabilities - in just 3 years, we moved fr
 
 To solve our Equity Research problem, we started with **Prototyping**. We built a "General Purpose" Research Agent using the best proprietary models available today.
 
-### The Stack
+### 3.1 The Stack
 *   **Model:** `GPT-5.1` (High Intelligence, High Cost)
 *   **Connectivity:** **Model Context Protocol (MCP)**
     *   *Why MCP?* It allowed us to plug in Yahoo Finance, Internal Docs, and Web Search standardly.
 
-### 🛠️ Tools in Action
+### 3.2 🛠️ Tools in Action
 The agent autonomously decides which tool to use:
 1.  **🌐 Web Search:** For real-time competitor news.
 2.  **📂 Internal Docs (RAG):** For proprietary investment mandates.
@@ -87,7 +87,7 @@ The agent autonomously decides which tool to use:
 
 <img src="docs/research_agent.png" alt="Agent Setup" height="200">
 
-### 🔧 Context Engineering: Optimizing Tool Use
+### 3.3 🔧 Context Engineering: Optimizing Tool Use
 
 To get the best performance from our "General Purpose" Research Agent, we implemented a structured prompt engineering strategy.
 
@@ -128,7 +128,7 @@ One of the biggest challenges in agentic systems is "context management."
 
 ---
 
-## 🧠 Stage 2: The Analyst Model (Customization)
+## 4. 🧠 Stage 2: The Analyst Model (Customization) <a name="4-stage-2-the-analyst-model-customization"></a>
 
 > **TL;DR:**  
 > **The Democratization of Fine-Tuning:**  
@@ -138,13 +138,13 @@ One of the biggest challenges in agentic systems is "context management."
 
 While the Research Agent is powerful, it is **generic** and **expensive**. To scale, we needed a specialist.
 
-### The Pivot: Prototyping ➡️ Production
+### 4.1 The Pivot: Prototyping ➡️ Production
 We didn't just want "an answer"; we wanted **OUR** answer.
 
 *   **Context Engineering:** We utilized the Research Agent to generate thousands of synthetic "Reasoning Traces" (Chain of Thought).
 *   **Fine-Tuning:** We distilled this intelligence into a smaller, faster, open-source model (`Qwen3-4B-Thinking`).
 
-### 📚 Emerging Research in Specialized Fine-Tuning
+### 4.2 📚 Emerging Research in Specialized Fine-Tuning
 We are seeing a clear trend in the industry: **Small, specialized models are outperforming large generalists on narrow tasks.**
 
 1.  **[xRouter (Oct 2025)](https://arxiv.org/pdf/2510.08439):** A 7B model fine-tuned specifically for **Tool Calling** and routing, optimizing cost-performance.
@@ -153,7 +153,7 @@ We are seeing a clear trend in the industry: **Small, specialized models are out
 
 > *Note on Architectures:* Even **OpenAI's Deep Research** follows this specialization pattern. It isn't just one giant model; it uses a (1) Search (high level, exploring) and a (2) Fetch (low level, deep dive) toolset, splitting high-level exploration from low-level reading.
 
-### The Comparison
+### 4.3 The Comparison
 | Feature | 🕵️‍♂️ Research Agent (Prototype) | 🧠 Analyst Model (Production) |
 | :--- | :--- | :--- |
 | **Model** | GPT-5.1 (Proprietary) | Qwen3-4B (Open Source) |
@@ -165,7 +165,7 @@ We are seeing a clear trend in the industry: **Small, specialized models are out
 
 ---
 
-## 💡 Conclusion
+## 5. 💡 Conclusion <a name="5-conclusion"></a>
 
 We are no longer just "prompting" models. We are **architecting** systems.
 
@@ -173,5 +173,3 @@ We are no longer just "prompting" models. We are **architecting** systems.
 2.  **Creating New Value:** We can create infinite variations of specialized models using **Classical Data Science**.
     *   *The Shift:* Spend 75% of your time on **Data** and **Reward Function Engineering**.
     *   *The Goal:* Tremendous alignment with SMEs by defining exactly what is penalized and what is rewarded.
-
-*Welcome to the future of Applied AI.* ❄️
