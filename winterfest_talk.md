@@ -33,6 +33,7 @@
 
 > **TL;DR:**  
 > **Diverging Paths to Excellence:**  
+Good example: OpenAI Deep Research vs Anthropic Deep Research
 > 1. **Fine-Tuning:** Some (like OpenAI) are creating specialized "snapshots" of models aligned to specific behaviors (e.g., Deep Research).  
 > 2. **Context Engineering of Agentic Systems:** Others (like Anthropic) are building multi-agent collaborations where "Planner" and "Worker" models decompose tasks to achieve complex goals.
 
@@ -81,14 +82,14 @@ To solve our Equity Research problem, we started with **Prototyping**. We built 
 
 ### 3.2 🛠️ Tools in Action
 The agent autonomously decides which tool to use:
-1.  **🌐 Web Search:** For real-time competitor news.
-2.  **📂 Internal Docs (RAG):** For proprietary investment mandates.
-3.  **📈 Stock Market MCP:** For live price history and financials.
-4.  **🐍 Code Interpreter:** For calculating valuation metrics on the fly.
+1.  **🌐 Web Search:** For real-time news, general web research.
+2.  **📂 Internal Docs (RAG):** For analyzing uploaded documents, if any.
+3.  **📈 Stock Market MCP:** For live price history and financials from Yahoo.
+4.  **🐍 Code Interpreter:** For calculating valuation metrics on the fly if necessary.
 
 <img src="docs/research_agent.png" alt="Agent Setup" height="200">
 
-### 3.3 🔧 Context Engineering: Optimizing Tool Use
+### 3.3 🔧 Context Engineering: Optimizing / Harmonizing Prompts and Tool Use
 
 To get the best performance from our "General Purpose" Research Agent, we implemented a structured prompt engineering strategy.
 
@@ -129,7 +130,7 @@ One of the biggest challenges in agentic systems is "context management."
 
 ---
 
-## 4. 🧠 Stage 2: The Analyst Model (Customization) <a name="4-stage-2-the-analyst-model-customization"></a>
+## 4. 🧠 Stage 2: The Decision Maker Model (Customization) <a name="4-stage-2-the-analyst-model-customization"></a>
 
 > **TL;DR:**  
 > **The Democratization of Fine-Tuning:**  
@@ -144,6 +145,13 @@ We didn't just want "an answer"; we wanted **OUR** answer.
 
 *   **Context Engineering:** We utilized the Research Agent to generate thousands of synthetic "Reasoning Traces" (Chain of Thought).
 *   **Fine-Tuning:** We distilled this intelligence into a smaller, faster, open-source model (`Qwen3-4B-Thinking`).
+
+
+### 4.2 Fine tuning materials
+
+<img src="https://substackcdn.com/image/fetch/$s_!Xhzl!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fd2e82204-1a7d-43bb-b1f2-ce7d55122454_1668x1060.png" alt="Reasoning LLMs" width="550">
+
+Training results: good generalization, loss on eval matches train
 
 <img src="docs/loss_curve.png" alt="Loss Curves" width="750">
 
