@@ -18,7 +18,7 @@
 1.  [**The Objective:** Why are we here?](#1-objective)
 2.  [**The Timeline:** From Chatbots to Autonomous Agents (2022-2025).](#2-the-acceleration-era-a-3-year-journey)
 3.  [**Stage 1:** Building our Research Agent (Prototyping).](#3-stage-1-the-research-agent-prototyping)
-4.  [**Stage 2:** Creating our Custom Analyst Model.](#4-stage-2-the-analyst-model-customization)
+4.  [**Stage 2:** Creating our Custom Decision Maker Model.](#4-stage-2-the-analyst-model-customization)
 5.  [**Conclusion:** The Future of Applied AI Architectures.](#5-conclusion)
 
 ---
@@ -47,7 +47,6 @@ We have witnessed an explosion in AI capabilities - in just 3 years, we moved fr
 ### 2.2 2024: The "Agentic" Shift 🧠
 *   **[Sept 2024](https://openai.com/index/learning-to-reason-with-llms/):** **OpenAI o1-preview**. The first "Reasoning" model.
     *   *Shift:* Models start "thinking" before speaking.
-*   **[Oct 2024](https://github.com/openai/swarm):** **Agents SDK (Swarm)**. Orchestration becomes a first-class citizen.
 *   **[Nov 2024](https://www.anthropic.com/news/model-context-protocol):** **Anthropic MCP**. A universal standard for connecting AI to data.
     *   *Impact:* No more writing custom integrations for every data source.
 
@@ -58,9 +57,8 @@ We have witnessed an explosion in AI capabilities - in just 3 years, we moved fr
 *   **[Jun 2025](https://www.anthropic.com/engineering/multi-agent-research-system)**: **Anthropic Deep Research**.
     *   *Capability:* A planner - worker multi-agent team setup for deep research
 *   **[Sept-Nov 2025](https://openai.com/index/introducing-upgrades-to-codex/)**: Coding-specific snapshots of 'base' models
-    *   *Capability:* Autonomous coding agents that can maintain context for days.
-*   **[Nov 2025](https://openai.com/index/gpt-5-1-codex-max/)** **GPT-5.1-Codex-Max**.
-    *   *Capability:* **The 24-Hour Agent.** Can work independently on complex tasks for over a day without human intervention.
+    *   Example: **[Nov 2025](https://openai.com/index/gpt-5-1-codex-max/)** **GPT-5.1-Codex-Max**.
+        *   *Capability:* **The 24-Hour Agent.** Can work independently on complex tasks for over a day without human intervention.
 
 ---
 
@@ -72,15 +70,12 @@ We have witnessed an explosion in AI capabilities - in just 3 years, we moved fr
 > *   **Capable Reasoning Models:** No more complex prompt chains to force logic.  
 > *   **Effective Tool Usage:** Models now natively understand when and how to call external APIs.
 
-To solve our Equity Research problem, we started with **Prototyping**. We built a "General Purpose" Research Agent using the best proprietary models available today.
+To solve our Equity Research problem, we start with **Prototyping**. We build a "General Purpose" Research Agent using the best proprietary models available today.
 
-### 3.1 The Stack
-*   **Model:** `GPT-5.1`
-*   **Connectivity:** 
-    *   **Model Context Protocol (MCP)**
-    *   **Custom tools**
+### 3.1 🛠️ The Stack and Tools in Action
 
-### 3.2 🛠️ Tools in Action
+**Model:** `GPT-5.1`
+
 The agent autonomously decides which tool to use:
 1.  **🌐 Web Search:** For real-time news, general web research.
 2.  **📂 Internal Docs (RAG):** For analyzing uploaded documents, if any.
@@ -89,9 +84,7 @@ The agent autonomously decides which tool to use:
 
 <img src="docs/research_agent.png" alt="Agent Setup" height="200">
 
-### 3.3 🔧 Context Engineering: Optimizing / Harmonizing Prompts and Tool Use
-
-To get the best performance from our "General Purpose" Research Agent, we implemented a structured prompt engineering strategy.
+### 3.2 🔧 Context Engineering: Optimizing / Harmonizing Prompts and Tool Use
 
 ```xml
 <system_prompt>
@@ -124,8 +117,6 @@ One of the biggest challenges in agentic systems is "context management."
     *   *Strategy:* Don't just dump all tools. Use a "Router" or "Planner" step to select *only* the relevant tools for the current step.
     *   *Optimization:* Combine reasoning and action. Instead of `Reason -> Tool Call -> Reason -> Tool Call`, allow the model to write a **script** that executes multiple steps at once.
 
-> "By enabling the model to write execution scripts across tools, we reduce the Reasoning-Action chain latency and cost." — *Inspired by Anthropic Engineering*
-
 <img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Ff359296f770706608901eadaffbff4ca0b67874c-1999x1125.png&w=3840&q=75" alt="Advanced Tool Use Visualization" width="600">
 
 ---
@@ -144,7 +135,7 @@ While the Research Agent is powerful, it is **generic** and **expensive**. To sc
 We didn't just want "an answer"; we wanted **OUR** answer.
 
 *   **Context Engineering:** We utilized the Research Agent to generate thousands of synthetic "Reasoning Traces" (Chain of Thought).
-*   **Fine-Tuning:** We distilled this intelligence into a smaller, faster, open-source model (`Qwen3-4B-Thinking`).
+*   **Fine-Tuning:** We distill this intelligence into a smaller, faster, open-source model (`Qwen3-4B-Thinking`).
 
 
 ### 4.2 Fine tuning materials
@@ -156,7 +147,7 @@ Training results: good generalization, loss on eval matches train
 <img src="docs/loss_curve.png" alt="Loss Curves" width="750">
 
 ### 4.2 📚 Emerging Research in Specialized Fine-Tuning
-We are seeing a clear trend in the industry: **Small, specialized models are outperforming large generalists on narrow tasks.**
+We are seeing a clear trend in the industry: **Small, specialized models can outperform large generalists on narrow tasks.**
 
 1.  **[xRouter (Oct 2025)](https://arxiv.org/pdf/2510.08439):** A 7B model fine-tuned specifically for **Tool Calling** and routing, optimizing cost-performance.
 2.  **[FARA-7B (Nov 2025)](https://www.microsoft.com/en-us/research/blog/fara-7b-an-efficient-agentic-model-for-computer-use/):** A Microsoft model fine-tuned for **Computer Use** (GUI navigation), proving specialized agents don't need 400B parameters.
@@ -174,3 +165,15 @@ We are no longer just "prompting" models. We are **architecting** systems.
 2.  **Creating New Value:** We can create infinite variations of specialized models using **Classical Data Science**.
     *   *The Shift:* Spend 75% of your time on **Data** and **Reward Function Engineering**.
     *   *The Goal:* Tremendous alignment with SMEs by defining exactly what is penalized and what is rewarded.
+
+---
+
+## 6. Sources
+
+- https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/Qwen3_(4B)-Thinking.ipynb#scrollTo=MKX_XKs_BNZR
+- https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide
+- https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/datasets-guide
+- https://docs.unsloth.ai/get-started/reinforcement-learning-rl-guide
+
+Local fine-tuning in case we have a physical GPU: https://docs.unsloth.ai/basics/fine-tuning-llms-with-nvidia-dgx-spark-and-unsloth
+
