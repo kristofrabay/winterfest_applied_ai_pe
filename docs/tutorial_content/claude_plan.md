@@ -23,7 +23,7 @@ Kristof is preparing a follow-up conference talk to his WinterFest 2025 presenta
 
 **Goal:** Create a simple, self-contained tool-calling agent using OpenAI's API (GPT-5.4) that we can run 1000+ times to generate training trajectories.
 
-### Notebook: `nb/tool_calling_agent.ipynb`
+### Notebook: `nb/bbb/tool_calling_agent.ipynb`
 
 **1a. Define the tools as plain Python functions + OpenAI tool schemas**
 
@@ -68,7 +68,7 @@ Adapt the existing agent system prompt from `nb/agent.ipynb` but simplified:
 
 **Goal:** Run the teacher agent ~1000 times across diverse companies, capturing full multi-turn tool-calling trajectories.
 
-### Notebook: `nb/tool_calling_data_generator.ipynb`
+### Notebook: `nb/bbb/tool_calling_data_generator.ipynb`
 
 **2a. Company list generation**
 
@@ -133,11 +133,69 @@ After collection, filter out:
 
 ---
 
+## Phase 2.5: Baseline — Run the Raw Model with Tools (Before Any Fine-Tuning)
+
+**Goal:** Establish a baseline by running Qwen3-4B-Thinking (and optionally gpt-oss-20b) on the same research tasks *without any fine-tuning*, but with tools enabled. This gives us a "before" snapshot to compare against SFT and RL results.
+
+### Notebook: `nb/bbb/tool_calling_baseline.ipynb`
+
+**2.5a. Serve the model locally via llama.cpp or vLLM**
+
+Use llama.cpp's `llama-server` with `--jinja` flag (enables tool-calling chat templates) to serve the GGUF model locally on an OpenAI-compatible endpoint:
+
+```bash
+# Download the GGUF model
+# Then serve it:
+./llama.cpp/llama-server \
+    --model unsloth/Qwen3-4B-Thinking-GGUF/... \
+    --ctx-size 8192 \
+    --port 8002 \
+    --jinja
+```
+
+Alternatively, on Databricks with GPU, load directly via Unsloth/transformers for inference.
+
+**2.5b. Run the same agent loop against the raw model**
+
+Reuse the tool-calling loop from Phase 1 (`tools/stock_tools.py` + the while-loop), but point it at the local model endpoint instead of OpenAI's API:
+
+```python
+# Same OpenAI client pattern, just different base_url
+client = OpenAI(base_url="http://127.0.0.1:8002/v1", api_key="sk-no-key-required")
+```
+
+Run on ~10-20 tickers and capture:
+- Does it call tools at all?
+- Does it pick the right tools?
+- Does it produce valid JSON arguments?
+- Does it know when to stop?
+- Quality of the final memo (if it produces one)
+
+**2.5c. Document the baseline failures**
+
+This is the most important part for the talk narrative. Expect to see:
+- **Wrong tool selection:** Calls `get_stock_news` when asked about financials
+- **Malformed arguments:** Invalid JSON, wrong parameter names
+- **Looping:** Keeps calling the same tool repeatedly
+- **No final output:** Never stops calling tools or produces an empty memo
+- **No reasoning:** Jumps to tool calls without `<think>` blocks
+
+Save representative examples (both good and bad) for before/after comparison slides.
+
+**2.5d. Quantitative baseline metrics**
+
+Run the same reward function from Phase 4 on the baseline trajectories to get numerical scores. This gives a concrete number to improve upon:
+- Average reward score on baseline: expect ~1.0-2.0 (mostly format/partial credit)
+- After SFT: expect ~3.5-4.5
+- After RL: expect ~4.5-5.5
+
+---
+
 ## Phase 3: SFT — Teach the Small Model to Call Tools
 
 **Goal:** Fine-tune a small open-source model to replicate the teacher's tool-calling behavior.
 
-### Notebook: `nb/tool_calling_sft.ipynb`
+### Notebook: `nb/bbb/tool_calling_sft.ipynb`
 
 **3a. Base model selection**
 
@@ -217,7 +275,7 @@ SFTConfig(
 
 **Goal:** Use GRPO to reward desirable behaviors and penalize bad habits.
 
-### Notebook: `nb/tool_calling_rl.ipynb`
+### Notebook: `nb/bbb/tool_calling_rl.ipynb`
 
 **4a. Framework: Unsloth GRPO with DAPO loss**
 
@@ -305,10 +363,11 @@ Show before/after comparisons:
 
 | # | Notebook | Purpose | Key Output |
 |---|----------|---------|------------|
-| 1 | `nb/tool_calling_agent.ipynb` | Teacher agent + tool loop | Working agent that researches any ticker |
-| 2 | `nb/tool_calling_data_generator.ipynb` | Dataset generation | `data/tool_calling_trajectories.jsonl` |
-| 3 | `nb/tool_calling_sft.ipynb` | SFT fine-tuning | LoRA adapters for tool-calling Qwen3-4B |
-| 4 | `nb/tool_calling_rl.ipynb` | GRPO reinforcement learning | Refined model with better tool-use behavior |
+| 1 | `nb/bbb/tool_calling_agent.ipynb` | Teacher agent + tool loop | Working agent that researches any ticker |
+| 2 | `nb/bbb/tool_calling_data_generator.ipynb` | Dataset generation | `data/tool_calling_trajectories.jsonl` |
+| 2.5 | `nb/bbb/tool_calling_baseline.ipynb` | Raw model baseline (no fine-tuning) | Baseline metrics + failure examples for talk |
+| 3 | `nb/bbb/tool_calling_sft.ipynb` | SFT fine-tuning | LoRA adapters for tool-calling Qwen3-4B |
+| 4 | `nb/bbb/tool_calling_rl.ipynb` | GRPO reinforcement learning | Refined model with better tool-use behavior |
 
 **Additional files:**
 - `tools/stock_tools.py` — Extracted tool functions (shared by notebooks 1, 2, and the RL environment)
@@ -322,11 +381,12 @@ Show before/after comparisons:
 1. **"Last time"** — Recap the WinterFest demo (GPT-5.1 agent → Qwen3-4B analyst)
 2. **"The problem"** — Proprietary models are expensive, can't deploy on-prem
 3. **"Step 1: Prototype"** — Show the teacher agent working (live demo with a ticker)
-4. **"Step 2: Distill"** — Show the dataset, explain the SFT process
-5. **"Step 3: Specialize"** — Show SFT model calling tools (it works! but inefficiently)
-6. **"Step 4: Refine"** — RL reward design, before/after comparison
-7. **"The punchline"** — A 4B model running locally does 80%+ of what GPT-5.4 does, at ~0 marginal cost
-8. **"What's next"** — Mention gpt-oss-20b as production alternative, on-device deployment possibilities
+4. **"Step 2: Baseline"** — Run the raw Qwen3-4B with tools enabled — show it struggles (wrong tools, bad JSON, loops)
+5. **"Step 3: Distill"** — Show the dataset, explain the SFT process
+6. **"Step 4: Specialize"** — Show SFT model calling tools (it works! but inefficiently)
+7. **"Step 5: Refine"** — RL reward design, before/after comparison
+8. **"The punchline"** — A 4B model running locally does 80%+ of what GPT-5.4 does, at ~0 marginal cost. Show the 3-way comparison: baseline → SFT → RL
+9. **"What's next"** — Mention gpt-oss-20b as production alternative, on-device deployment possibilities
 
 ---
 
@@ -334,9 +394,10 @@ Show before/after comparisons:
 
 1. **Phase 1:** Run the teacher agent on 5 tickers manually, verify tool calls execute and memos are generated
 2. **Phase 2:** Generate 50 test trajectories, inspect format, verify JSONL is valid, check tool call diversity
-3. **Phase 3:** After SFT, run inference on 10 unseen tickers — check tool calls are valid JSON, correct tools selected, memo produced
-4. **Phase 4:** After RL, compare reward scores before/after on a held-out set of 50 prompts — expect +1.5 average improvement
-5. **End-to-end:** Run the full pipeline on a ticker never seen in training, present the result in talk format
+3. **Phase 2.5:** Run raw Qwen3-4B on 10-20 tickers with tools — document baseline failures and compute reward scores
+4. **Phase 3:** After SFT, run inference on 10 unseen tickers — check tool calls are valid JSON, correct tools selected, memo produced
+5. **Phase 4:** After RL, compare reward scores across all 3 stages (baseline → SFT → RL) on held-out set of 50 prompts
+6. **End-to-end:** Run the full pipeline on a ticker never seen in training, present the 3-way comparison in talk format
 
 ---
 
@@ -344,9 +405,9 @@ Show before/after comparisons:
 
 We will build these **sequentially**, one notebook at a time:
 
-1. **Start with Phase 1** (`nb/tool_calling_agent.ipynb`) — get the teacher agent working with a few tickers
-2. **Then Phase 2** (`nb/tool_calling_data_generator.ipynb`) — bulk data generation
-3. **Then Phase 3** (`nb/tool_calling_sft.ipynb`) — SFT training on Databricks
-4. **Finally Phase 4** (`nb/tool_calling_rl.ipynb`) — GRPO refinement
+1. **Start with Phase 1** (`nb/bbb/tool_calling_agent.ipynb`) — get the teacher agent working with a few tickers
+2. **Then Phase 2** (`nb/bbb/tool_calling_data_generator.ipynb`) — bulk data generation
+3. **Then Phase 3** (`nb/bbb/tool_calling_sft.ipynb`) — SFT training on Databricks
+4. **Finally Phase 4** (`nb/bbb/tool_calling_rl.ipynb`) — GRPO refinement
 
 Each phase validates the previous one's output before moving on. We'll also extract shared tool definitions into `tools/stock_tools.py` during Phase 1 so all notebooks import from the same place.
