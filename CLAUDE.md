@@ -7,28 +7,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Conference demo project for **"Agentic Systems in Practice: Applying AI to Investments"** — originally presented at Data Science Festival WinterFest 2025, now being extended for a follow-up conference talk.
 
 The system is a **two-stage pipeline** for automated equity investment research:
-1. **Research Agent** (`nb/agent.ipynb`) — GPT-5.1-powered agent with MCP tools that generates structured research memos on target companies
+1. **Research Agent** (`nb/winterfest/agent.ipynb`) — GPT-5.1-powered agent with MCP tools that generates structured research memos on target companies
 2. **Analyst Model** — A fine-tuned small language model (Qwen3-4B) that reads research memos and produces investment verdicts (`Strong Yes` / `Questionable` / `Strong No`) with chain-of-thought reasoning
 
-### Current Conference Goal (Next Talk)
+### Current Conference Goal (Big Birthday Bash — BBB)
 
-Extend the project to fine-tune and apply RL to a **small open-source GPT model** for the research task itself:
-1. Build an MCP-server-enabled simple GPT that performs research (replacing the proprietary GPT-5.1 agent)
-2. Generate training data from the proprietary agent's outputs to train the smaller model
-3. **SFT** (Supervised Fine-Tuning) on the collected data
-4. **RL** (Reinforcement Learning) to further align the model's research quality
+Teach **Qwen3-4B** to be the research agent itself via tool-calling fine-tuning + RL:
+1. **Teacher Agent** (`nb/bbb/tool_calling_agent.ipynb`) — GPT-5.4 agent with stock tools, generates training trajectories
+2. **Data Generation** (`nb/bbb/tool_calling_data_generator.ipynb`) — Run teacher on ~200 companies, save full tool-calling trajectories
+3. **Baseline** (`nb/bbb/tool_calling_baseline.ipynb`) — Run raw Qwen3-4B with tools to establish "before" metrics
+4. **SFT** (`nb/bbb/tool_calling_sft.ipynb`) — Fine-tune Qwen3-4B on trajectories via Unsloth
+5. **RL** (`nb/bbb/tool_calling_rl.ipynb`) — GRPO via ART (OpenPipe) to refine tool-calling behavior
+
+Full plan: `docs/tutorial_content/claude_plan.md`
 
 ## Commands
 
 ```bash
 # Environment setup
 uv sync                                    # Install all dependencies
-python tools/mcp/stock_server.py           # Start MCP server on port 8001 (must be running before agent notebook)
+python tools/mcp/stock_server.py           # Start MCP server on port 8001 (must be running before winterfest agent notebook)
 
-# Run notebooks (Jupyter)
-jupyter notebook nb/agent.ipynb            # Stage 1: Research agent
-jupyter notebook nb/training_data_generator.ipynb  # Generate synthetic training data
-jupyter notebook nb/training_recipe.ipynb  # Stage 2: SFT training workflow
+# WinterFest notebooks (original talk)
+jupyter notebook nb/winterfest/agent.ipynb
+jupyter notebook nb/winterfest/training_data_generator.ipynb
+jupyter notebook nb/winterfest/training_recipe.ipynb
+
+# BBB notebooks (new talk — tool-calling fine-tuning + RL)
+jupyter notebook nb/bbb/tool_calling_agent.ipynb
+jupyter notebook nb/bbb/tool_calling_data_generator.ipynb
+jupyter notebook nb/bbb/tool_calling_baseline.ipynb
+jupyter notebook nb/bbb/tool_calling_sft.ipynb
+jupyter notebook nb/bbb/tool_calling_rl.ipynb
 ```
 
 ## Architecture Details
@@ -38,19 +48,19 @@ jupyter notebook nb/training_recipe.ipynb  # Stage 2: SFT training workflow
 - 4 tools via Yahoo Finance (`yfinance`): `get_stock_news`, `get_financials`, `get_price_history`, `get_recommendations`
 - The agent notebook connects to this as an MCP tool source — the server **must be running** before executing the agent
 
-### Research Agent (`nb/agent.ipynb`)
+### Research Agent (`nb/winterfest/agent.ipynb`)
 - Uses `openai-agents` SDK (OpenAI's agentic framework) with `gpt-5.1`
 - Tools: Web Search, File Search (RAG over `data/docs/`), Code Interpreter, MCP stock tools
 - Output: Structured markdown reports covering Competition, Customers, Financials, Growth Opportunities → saved to `data/output/`
 - Streaming helper in `nb/helpers/llm_helpers.py` handles all event types from the agent SDK
 
-### Training Data Pipeline (`nb/training_data_generator.ipynb`)
+### Training Data Pipeline (`nb/winterfest/training_data_generator.ipynb`)
 - Generates ~5,000 synthetic examples using `gpt-4.1-mini`
 - Each example: fictional company report → expert investment verdict with reasoning
 - Output format: JSONL files in `data/` (main dataset: `data/training_data_examples_all.jsonl`)
 - Includes a hallucination detection dataset variant
 
-### Fine-Tuning (`nb/training_recipe.ipynb`)
+### Fine-Tuning (`nb/winterfest/training_recipe.ipynb`)
 - Base model: `unsloth/Qwen3-4B-Thinking` (4-bit quantized)
 - Framework: Unsloth with LoRA adapters
 - Training format: model outputs `<think>` block (chain-of-thought) followed by structured verdict

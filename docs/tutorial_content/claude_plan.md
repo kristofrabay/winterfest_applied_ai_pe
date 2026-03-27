@@ -17,6 +17,52 @@ Kristof is preparing a follow-up conference talk to his WinterFest 2025 presenta
 | **GPU environment** | **Databricks cluster** | Develop locally, run notebooks on Databricks compute with GPUs. No Colab constraints. |
 | **Framework** | **Unsloth** | Consistent with existing project, 2x faster training, first-class Qwen3 support |
 
+### Qwen3-4B Native Tool Calling — CONFIRMED
+
+Qwen3-4B supports tool calling **out of the box** with zero fine-tuning. The Hermes-style tool calling template is baked into `tokenizer_config.json`.
+
+**Syntax — via Transformers / Unsloth:**
+```python
+from unsloth import FastLanguageModel
+
+model, tokenizer = FastLanguageModel.from_pretrained("unsloth/Qwen3-4B", max_seq_length=8192, load_in_4bit=True)
+FastLanguageModel.for_inference(model)
+
+tools = [{"type": "function", "function": {"name": "get_financials", "description": "...", "parameters": {...}}}]
+messages = [{"role": "user", "content": "Research AAPL"}]
+
+text = tokenizer.apply_chat_template(messages, tools=tools, tokenize=False, add_generation_prompt=True, enable_thinking=True)
+inputs = tokenizer(text, return_tensors="pt").to(model.device)
+outputs = model.generate(**inputs, max_new_tokens=2048)
+# Model outputs <tool_call>{"name": "get_financials", "arguments": {...}}</tool_call>
+```
+
+**Syntax — via llama.cpp (OpenAI-compatible API):**
+```bash
+./llama-server -hf Qwen/Qwen3-4B-GGUF:Q8_0 --jinja --reasoning-format deepseek -c 8192 --port 8002
+```
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:8002/v1", api_key="sk-no-key-required")
+response = client.chat.completions.create(model="qwen3-4b", messages=messages, tools=tools)
+# response.choices[0].message.tool_calls -> parsed automatically
+```
+
+**Syntax — via vLLM:**
+```bash
+vllm serve Qwen/Qwen3-4B --enable-auto-tool-choice --tool-call-parser hermes --enable-reasoning --reasoning-parser deepseek_r1
+```
+
+### Known Risks & Mitigations
+
+| # | Risk | Level | Mitigation |
+|---|------|-------|------------|
+| 1 | **yfinance rate limits** (~360 req/hr). 1000 companies × 4 tools = days without caching. | HIGH | Pre-fetch all yfinance data to disk with aggressive caching + 1-2s delays. Budget 3-5 days or use `yf.download()` batch API. |
+| 2 | **GRPO multi-turn tool calling.** Standard GRPOTrainer is single-turn only. | HIGH | Use **ART (Agent Reinforcement Trainer)** by OpenPipe (built on Unsloth) for multi-turn. Fallback: offline trajectory scoring. |
+| 3 | **`train_on_responses_only` Qwen3 bug.** ZeroDivisionError reported (issue #2771). Multi-pattern masking PR unmerged. | MODERATE | Write custom label masking (~20 lines) as fallback. Or use TRL's `DataCollatorForCompletionOnlyLM`. Set `max_seq_length=8192`. |
+| 4 | **Qwen3-4B-Thinking vs Qwen3-4B naming.** "Thinking" variant not separately listed in Unsloth model catalog. | LOW | Use `unsloth/Qwen3-4B` with `enable_thinking=True` in chat template for guaranteed compatibility. |
+| 5 | **Qwen3 tool template edge cases.** Known issues with parallel calls, thinking bleed into tool calls. | LOW | Use `enable_thinking=False` for tool-calling inference if issues arise. Test early in Phase 2.5. |
+
 ---
 
 ## Phase 1: Build the Teacher Agent & Tool-Calling Loop
@@ -66,17 +112,17 @@ Adapt the existing agent system prompt from `nb/agent.ipynb` but simplified:
 
 ## Phase 2: Generate the Tool-Calling Training Dataset
 
-**Goal:** Run the teacher agent ~1000 times across diverse companies, capturing full multi-turn tool-calling trajectories.
+**Goal:** Run the teacher agent ~200 times across diverse companies with live yfinance calls, capturing full multi-turn tool-calling trajectories.
 
 ### Notebook: `nb/bbb/tool_calling_data_generator.ipynb`
 
 **2a. Company list generation**
 
-Generate a diverse list of ~1000 real publicly traded tickers:
-- Use a mix of S&P 500, NASDAQ 100, Russell 2000 tickers
-- Ensure diversity: sectors, market caps, geographies
-- Can use `yfinance` to get ticker lists, or hardcode a curated set
+Curate a list of ~200 real publicly traded tickers (reduced from 1000 to stay within yfinance rate limits):
+- Mix of S&P 500 and NASDAQ 100 tickers across diverse sectors
+- Rate limiting: 1-2 second delays between yfinance calls, ~6-8 hours total runtime
 - Add diversity in the *task prompt* too: "Research {ticker} focusing on {random_focus}" where focus varies (growth potential, competitive position, financial health, recent news, etc.)
+- Use `tenacity` + `limiter` for retry/rate-limiting (same pattern as existing `nb/winterfest/training_data_generator.ipynb`)
 
 **2b. Trajectory collection loop**
 
@@ -118,9 +164,9 @@ The teacher model should be prompted to include reasoning *before* each tool cal
 
 **2d. Cost & time estimate**
 - GPT-5.4: pricing TBD at talk time (likely comparable to GPT-4.1 range)
-- ~1000 trajectories × ~5 tool calls each × ~2K tokens/trajectory ≈ 10M tokens total
-- Estimated cost: ~$20-50 depending on GPT-5.4 pricing
-- Estimated time: ~2-3 hours (with rate limiting from `limiter`/`tenacity` as in existing `training_data_generator.ipynb`)
+- ~200 trajectories × ~5 tool calls each × ~2K tokens/trajectory ≈ 2M tokens total
+- Estimated API cost: ~$5-15 depending on GPT-5.4 pricing
+- Estimated time: ~6-8 hours (dominated by yfinance rate limiting, not API cost)
 
 **2e. Data quality filtering**
 After collection, filter out:
@@ -129,7 +175,7 @@ After collection, filter out:
 - Trajectories where the final memo is too short (<500 chars)
 - Duplicates or near-duplicates
 
-**Output:** `data/tool_calling_trajectories.jsonl` (~800-1000 clean trajectories)
+**Output:** `data/tool_calling_trajectories.jsonl` (~150-200 clean trajectories)
 
 ---
 
@@ -141,51 +187,26 @@ After collection, filter out:
 
 **2.5a. Serve the model locally via llama.cpp or vLLM**
 
-Use llama.cpp's `llama-server` with `--jinja` flag (enables tool-calling chat templates) to serve the GGUF model locally on an OpenAI-compatible endpoint:
-
-```bash
-# Download the GGUF model
-# Then serve it:
-./llama.cpp/llama-server \
-    --model unsloth/Qwen3-4B-Thinking-GGUF/... \
-    --ctx-size 8192 \
-    --port 8002 \
-    --jinja
-```
-
-Alternatively, on Databricks with GPU, load directly via Unsloth/transformers for inference.
+Use llama.cpp's `llama-server` with `--jinja` flag (enables tool-calling chat templates) to serve the GGUF model on an OpenAI-compatible endpoint. Alternatively, on Databricks with GPU, load directly via Unsloth/transformers.
 
 **2.5b. Run the same agent loop against the raw model**
 
-Reuse the tool-calling loop from Phase 1 (`tools/stock_tools.py` + the while-loop), but point it at the local model endpoint instead of OpenAI's API:
+Reuse the tool-calling loop from Phase 1, but point it at the local model endpoint instead of OpenAI's API:
 
 ```python
-# Same OpenAI client pattern, just different base_url
 client = OpenAI(base_url="http://127.0.0.1:8002/v1", api_key="sk-no-key-required")
 ```
 
-Run on ~10-20 tickers and capture:
-- Does it call tools at all?
-- Does it pick the right tools?
-- Does it produce valid JSON arguments?
-- Does it know when to stop?
-- Quality of the final memo (if it produces one)
+Run on ~10-20 tickers and capture: tool selection accuracy, JSON validity, looping behavior, memo quality.
 
 **2.5c. Document the baseline failures**
 
-This is the most important part for the talk narrative. Expect to see:
-- **Wrong tool selection:** Calls `get_stock_news` when asked about financials
-- **Malformed arguments:** Invalid JSON, wrong parameter names
-- **Looping:** Keeps calling the same tool repeatedly
-- **No final output:** Never stops calling tools or produces an empty memo
-- **No reasoning:** Jumps to tool calls without `<think>` blocks
-
-Save representative examples (both good and bad) for before/after comparison slides.
+Most important part for the talk narrative. Expect: wrong tool selection, malformed JSON args, infinite looping, no final output, no reasoning. Save representative examples for before/after slides.
 
 **2.5d. Quantitative baseline metrics**
 
-Run the same reward function from Phase 4 on the baseline trajectories to get numerical scores. This gives a concrete number to improve upon:
-- Average reward score on baseline: expect ~1.0-2.0 (mostly format/partial credit)
+Run the Phase 4 reward function on baseline trajectories to get numerical scores:
+- Baseline: expect ~1.0-2.0 (mostly format/partial credit)
 - After SFT: expect ~3.5-4.5
 - After RL: expect ~4.5-5.5
 
@@ -219,8 +240,12 @@ Follow the pattern from FunctionGemma notebook (`docs/tutorial_content/FunctionG
 
 1. Load trajectories from JSONL
 2. Apply the model's chat template with `tokenizer.apply_chat_template(messages, tools=tools)`
-3. Use `train_on_responses_only` to mask system/user/tool turns — only train on assistant outputs
+3. Mask system/user/tool turns — only train on assistant outputs
 4. This teaches the model: given context + tool results, what to say/call next
+
+**⚠️ Known issue:** Unsloth's `train_on_responses_only` has a reported bug with Qwen3 (ZeroDivisionError, issue #2771). Also, the multi-pattern masking PR (to properly mask both user and tool turns) is unmerged.
+
+**Fallback:** Write custom label masking — after tokenizing, scan for `<|im_start|>assistant` tokens and set labels=-100 for everything else. ~20 lines of code. Alternatively, use TRL's `DataCollatorForCompletionOnlyLM`.
 
 **3c. Training configuration**
 
@@ -229,7 +254,7 @@ Based on existing `nb/training_recipe.ipynb` and FunctionGemma patterns. With Da
 ```python
 # Model loading
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/Qwen3-4B-Thinking",
+    model_name="unsloth/Qwen3-4B",  # use enable_thinking=True in chat template for thinking
     max_seq_length=8192,  # longer for multi-turn tool trajectories
     load_in_4bit=True,
 )
@@ -277,20 +302,22 @@ SFTConfig(
 
 ### Notebook: `nb/bbb/tool_calling_rl.ipynb`
 
-**4a. Framework: Unsloth GRPO with DAPO loss**
+**4a. Framework: ART (Agent Reinforcement Trainer) by OpenPipe**
 
-GRPO (Group Relative Policy Optimization) generates multiple completions per prompt, scores them with reward functions, and updates the policy. DAPO loss is recommended by Unsloth for stability.
+Standard Unsloth GRPOTrainer is single-turn only. **ART** (`pip install art-trainer`) is built on top of Unsloth's GRPOTrainer and adds native multi-turn tool calling support. It uses a client/server architecture:
+- **ART Server** (on GPU): hosts the model, runs GRPO training
+- **ART Client** (your code): runs the agent loop, executes tools, scores trajectories
+
+ART captures full trajectories including `<tool_call>`, `<think>`, and `<tool_response>` messages.
 
 **4b. RL environment setup**
 
-For each training step:
-1. Sample a company ticker + research task
-2. Model generates a response (potentially with tool calls)
-3. If tool calls are present, execute them and feed results back
-4. Continue until model stops calling tools or hits max iterations
-5. Score the full trajectory with reward functions
-
-**Use Unsloth's ART (Agent Reinforcement Trainer)** or implement a custom environment that wraps the tool execution loop.
+The ART client implements the agent loop:
+1. ART server proposes a completion (potentially with tool calls)
+2. Client parses tool calls, executes them against yfinance tools
+3. Client sends tool results back, server continues generating
+4. When the model stops calling tools, the full trajectory is scored
+5. ART server uses GRPO with DAPO loss to update the policy
 
 **4c. Reward function design (ToolRL-inspired composite)**
 
@@ -381,12 +408,12 @@ Show before/after comparisons:
 1. **"Last time"** — Recap the WinterFest demo (GPT-5.1 agent → Qwen3-4B analyst)
 2. **"The problem"** — Proprietary models are expensive, can't deploy on-prem
 3. **"Step 1: Prototype"** — Show the teacher agent working (live demo with a ticker)
-4. **"Step 2: Baseline"** — Run the raw Qwen3-4B with tools enabled — show it struggles (wrong tools, bad JSON, loops)
+4. **"Step 2: Baseline"** — Run the raw Qwen3-4B with tools enabled — show it struggles
 5. **"Step 3: Distill"** — Show the dataset, explain the SFT process
 6. **"Step 4: Specialize"** — Show SFT model calling tools (it works! but inefficiently)
 7. **"Step 5: Refine"** — RL reward design, before/after comparison
-8. **"The punchline"** — A 4B model running locally does 80%+ of what GPT-5.4 does, at ~0 marginal cost. Show the 3-way comparison: baseline → SFT → RL
-9. **"What's next"** — Mention gpt-oss-20b as production alternative, on-device deployment possibilities
+8. **"The punchline"** — 3-way comparison: baseline → SFT → RL, at ~0 marginal cost
+9. **"What's next"** — Mention gpt-oss-20b as production alternative, on-device deployment
 
 ---
 
@@ -394,10 +421,10 @@ Show before/after comparisons:
 
 1. **Phase 1:** Run the teacher agent on 5 tickers manually, verify tool calls execute and memos are generated
 2. **Phase 2:** Generate 50 test trajectories, inspect format, verify JSONL is valid, check tool call diversity
-3. **Phase 2.5:** Run raw Qwen3-4B on 10-20 tickers with tools — document baseline failures and compute reward scores
+3. **Phase 2.5:** Run raw Qwen3-4B on 10-20 tickers with tools — document baseline failures, compute reward scores
 4. **Phase 3:** After SFT, run inference on 10 unseen tickers — check tool calls are valid JSON, correct tools selected, memo produced
-5. **Phase 4:** After RL, compare reward scores across all 3 stages (baseline → SFT → RL) on held-out set of 50 prompts
-6. **End-to-end:** Run the full pipeline on a ticker never seen in training, present the 3-way comparison in talk format
+5. **Phase 4:** After RL, compare reward scores across all 3 stages (baseline → SFT → RL) on held-out set
+6. **End-to-end:** Run the full pipeline on an unseen ticker, present the 3-way comparison in talk format
 
 ---
 
@@ -407,7 +434,10 @@ We will build these **sequentially**, one notebook at a time:
 
 1. **Start with Phase 1** (`nb/bbb/tool_calling_agent.ipynb`) — get the teacher agent working with a few tickers
 2. **Then Phase 2** (`nb/bbb/tool_calling_data_generator.ipynb`) — bulk data generation
-3. **Then Phase 3** (`nb/bbb/tool_calling_sft.ipynb`) — SFT training on Databricks
-4. **Finally Phase 4** (`nb/bbb/tool_calling_rl.ipynb`) — GRPO refinement
+3. **Then Phase 2.5** (`nb/bbb/tool_calling_baseline.ipynb`) — raw model baseline with tools
+4. **Then Phase 3** (`nb/bbb/tool_calling_sft.ipynb`) — SFT training on Databricks
+5. **Finally Phase 4** (`nb/bbb/tool_calling_rl.ipynb`) — GRPO refinement
 
 Each phase validates the previous one's output before moving on. We'll also extract shared tool definitions into `tools/stock_tools.py` during Phase 1 so all notebooks import from the same place.
+
+**Note:** After exiting plan mode, update `CLAUDE.md` to reflect the new directory structure (`nb/winterfest/` for old notebooks, `nb/bbb/` for new conference work).
