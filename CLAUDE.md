@@ -13,11 +13,11 @@ The system is a **two-stage pipeline** for automated equity investment research:
 ### Current Conference Goal (Big Birthday Bash — BBB)
 
 Teach **Qwen3-4B** to be the research agent itself via tool-calling fine-tuning + RL:
-1. **Teacher Agent** (`nb/bbb/tool_calling_agent.ipynb`) — GPT-5.4 via Responses API with reasoning, generates training trajectories. DONE.
-2. **Data Generation** (`nb/bbb/tool_calling_data_generator.ipynb`) — Run teacher on ~200 companies, save full tool-calling trajectories
-3. **Baseline** (`nb/bbb/tool_calling_baseline.ipynb`) — Run raw Qwen3-4B with tools to establish "before" metrics
-4. **SFT** (`nb/bbb/tool_calling_sft.ipynb`) — Fine-tune Qwen3-4B on trajectories via Unsloth
-5. **RL** (`nb/bbb/tool_calling_rl.ipynb`) — GRPO via ART (OpenPipe) to refine tool-calling behavior
+1. **Teacher Agent** (`nb/bbb/_phase_1_teacher.ipynb`) — GPT-5.4 via Responses API with reasoning, generates training trajectories. DONE.
+2. **Data Generation** (`nb/bbb/_phase_2_data_gen.ipynb`) — Run teacher on ~200 companies, save full tool-calling trajectories
+3. **Baseline** (`nb/bbb/_phase_3_baseline.ipynb`) — Run raw Qwen3-4B with tools to establish "before" metrics
+4. **SFT** (`nb/bbb/_phase_4_sft.ipynb`) — Fine-tune Qwen3-4B on trajectories via Unsloth
+5. **RL** (`nb/bbb/_phase_5_rl.ipynb`) — GRPO via ART (OpenPipe) to refine tool-calling behavior
 
 ### BBB Code Structure (`nb/bbb/`)
 - `tools.py` — Stock tool functions + auto-generated OpenAI Responses API schemas (single source of truth)
@@ -45,11 +45,11 @@ jupyter notebook nb/winterfest/training_data_generator.ipynb
 jupyter notebook nb/winterfest/training_recipe.ipynb
 
 # BBB notebooks (new talk — tool-calling fine-tuning + RL)
-jupyter notebook nb/bbb/tool_calling_agent.ipynb
-jupyter notebook nb/bbb/tool_calling_data_generator.ipynb
-jupyter notebook nb/bbb/tool_calling_baseline.ipynb
-jupyter notebook nb/bbb/tool_calling_sft.ipynb
-jupyter notebook nb/bbb/tool_calling_rl.ipynb
+jupyter notebook nb/bbb/_phase_1_teacher.ipynb
+jupyter notebook nb/bbb/_phase_2_data_gen.ipynb
+jupyter notebook nb/bbb/_phase_3_baseline.ipynb
+jupyter notebook nb/bbb/_phase_4_sft.ipynb
+jupyter notebook nb/bbb/_phase_5_rl.ipynb
 ```
 
 ## Architecture Details

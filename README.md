@@ -1,104 +1,140 @@
-# Winterfest Applied AI: Equity Investment Opportunity sourcing
+# Applied AI: Equity Investment Opportunity Sourcing
 
-This project implements an end-to-end AI system for automated public equity investment research and analysis. It combines a powerful **Research Agent** capable of gathering real-time internal and external data with a custom **Fine-Tuned Analyst Model** that reasons through the data to provide an investment verdict.
+This project implements an end-to-end AI system for automated public equity investment research and analysis, developed across two conference talks:
 
-## 🏗️ Architecture
+1. **WinterFest 2025** — Built a two-stage pipeline: proprietary Research Agent + fine-tuned Analyst Model
+2. **Big Birthday Bash (BBB)** — Teaching the small model to *be* the agent itself via tool-calling SFT + RL
 
-The system operates in a two-stage pipeline:
+*Kristof Rabay — Applied AI @ The Carlyle Group*
+
+> **Disclaimer:** The views expressed are those of the speaker alone and do not reflect the official position of The Carlyle Group or its affiliates.
+
+---
+
+## Architecture Overview
+
+### WinterFest: Two-Stage Pipeline
 
 ```text
    [ Target Company ]
            │
            ▼
  ┌───────────────────────┐
- │  🕵️‍♂️ Research Agent    │
- │ (Web, Files, Stocks)  │
+ │  Research Agent        │  GPT-5.1 + MCP tools
+ │  (Web, Files, Stocks)  │  → Structured research memo
  └───────────┬───────────┘
-             │
-             ▼
-   [ 📝 Research Memo ]
              │
              ▼
  ┌───────────────────────┐
- │   🧠 Analyst Model    │
- │  (Fine-Tuned Qwen)    │
+ │  Analyst Model         │  Fine-tuned Qwen3-4B
+ │  (SFT on 5K examples)  │  → Investment verdict
  └───────────┬───────────┘
              │
              ▼
-  [ 💡 Investment Verdict ]
+  [ Strong Yes / Questionable / Strong No ]
 ```
 
-## 1. The Research Agent 🕵️‍♂️
-
-Located in `nb/agent.ipynb`, the Equity Research Agent is built using a proprietary agentic framework powered by `gpt-5.1`. It acts as the initial gatherer of intelligence, compiling a comprehensive "memo-like" writeup on a target company.
-
-![Research Agent](docs/research_agent.png)
-
-### Capabilities & Tools
-The agent is equipped with a suite of tools to ensure exhaustive coverage:
-
-- **🌐 Web Search Tool:** Scours the internet for the latest news, competitor analysis, and market trends.
-- **📂 File Search Tool:** RAG-enabled search over internal documents (e.g., PDF text files, proprietary reports) stored in `data/docs`.
-- **💻 Code Interpreter:** Executes Python code for on-the-fly data analysis and visualization.
-- **📈 Stock Market Tools (MCP):** 
-  - Connects to a local **Model Context Protocol (MCP)** server (`tools/mcp/stock_server.py`).
-  - Provides real-time financial data via Yahoo Finance integration.
-  - Capabilities: `get_financials`, `get_price_history`, `get_stock_news`, `get_recommendations`.
-
-**Output:** A structured markdown report covering **Competition**, **Customers**, **Financials**, and **Growth Opportunities**.
-
-## 2. The Investment Analyst 🧠
-
-The second stage involves a custom Small Language Model (SLM) fine-tuned specifically to mimic the reasoning process of a senior investment analyst.
-
-### The Model
-- **Base Model:** `unsloth/Qwen3-4B-Thinking` (Qwen 3, 4B parameters).
-- **Architecture:** 4-bit Quantized, Fine-tuned using LoRA (Low-Rank Adaptation) via **Unsloth**.
-- **Objective:** To take a raw research report, perform "thinking-aloud" (Chain-of-Thought) analysis, and output a structured verdict (`Strong Yes`, `Questionable`, `Strong No`).
-
-### Training Process
-1.  **Synthetic Data Generation** (`nb/training_data_generator.ipynb`):
-    -   We generated **~5,000** synthetic training examples using `gpt-4.1-mini`.
-    -   Each example consists of a fictional company report and a corresponding expert-level investment verdict with reasoning.
-    -   Data is stored in `data/training_data_examples_all.jsonl`.
-
-2.  **Fine-Tuning Recipe** (`nb/training_recipe.ipynb`):
-    -   **Library:** Unsloth (2x faster training, 60% less memory).
-    -   **Technique:** Supervised Fine-Tuning (SFT) on the generated dataset.
-    -   **Format:** Trained to output a `<think>` block followed by the verdict, encouraging the model to "reason" before deciding.
-    -   **Performance:** Achieved minimal overfitting (Train/Eval loss gap ~0.01) and strong generalization on holdout sets.
-
-![Training Loss](docs/loss_curve.png)
-
-## 📂 Project Structure
+### BBB: Teaching the Small Model to Call Tools
 
 ```text
-winterfest_applied_ai_pe/
-├── data/
-│   ├── docs/                   # Internal documents for RAG (PDFs, etc.)
-│   ├── output/                 # Generated research reports
-│   ├── training_data_*.jsonl   # Synthetic datasets for fine-tuning
-│   └── ...    
-├── docs/              
-├── nb/
-│   ├── helpers/                # Utility scripts (LLM streaming, etc.)  
-│   ├── agent.ipynb             # Stage 1: Research Agent implementation
-│   ├── training_data_generator.ipynb # Generates synthetic training data
-│   └── training_recipe.ipynb   # Stage 2: Model Fine-tuning workflow
-├── tools/
-│   └── mcp/
-│       └── stock_server.py     # MCP Server for Yahoo Finance data
-├── main.py                     # Main entry point
-└── README.md                   # This file
+   Phase 1: Teacher Agent (GPT-5.4)
+       │  generates ~200 tool-calling trajectories
+       ▼
+   Phase 2: Data Generation
+       │  truncated trajectories → SFT training data
+       ▼
+   Phase 3: Baseline (raw Qwen3-4B with tools)
+       │  establish "before" metrics
+       ▼
+   Phase 4: SFT (Unsloth + LoRA)
+       │  teach tool-calling behavior
+       ▼
+   Phase 5: RL (GRPO via ART)
+       │  refine: fewer redundant calls, better reasoning
+       ▼
+   [ Qwen3-4B that calls tools autonomously at ~$0/run ]
 ```
 
-## 🚀 Getting Started
+---
 
-1.  **Install Dependencies:** Ensure you have `uv` or `pip` installed and the environment set up.
-2.  **Start MCP Server:** Run the stock market tools server.
-    ```bash
-    python tools/mcp/stock_server.py
-    ```
-3.  **Run the Agent:** Open `nb/agent.ipynb` to generate research reports on target companies.
-4.  **Train/Inference:** Use `nb/training_recipe.ipynb` to fine-tune the model or run inference on the generated reports.
+## Project Structure
 
+```text
+├── nb/
+│   ├── winterfest/                        # WinterFest 2025 notebooks
+│   │   ├── agent.ipynb                    # Research Agent (GPT-5.1 + MCP)
+│   │   ├── training_data_generator.ipynb  # 5K synthetic verdicts via GPT-4.1-mini
+│   │   ├── training_recipe.ipynb          # SFT: Qwen3-4B-Thinking analyst
+│   │   └── helpers/                       # Streaming, LLM utilities
+│   │
+│   └── bbb/                               # Big Birthday Bash notebooks
+│       ├── tools.py                       # Stock tool functions + auto-generated schemas
+│       ├── agent.py                       # Tool-calling agent loop (Responses API)
+│       ├── _phase_1_teacher.ipynb         # Teacher agent demo (GPT-5.4)
+│       ├── _phase_2_data_gen.ipynb        # Bulk trajectory generation
+│       ├── _phase_3_baseline.ipynb        # Raw Qwen3-4B with tools
+│       ├── _phase_4_sft.ipynb             # SFT fine-tuning
+│       └── _phase_5_rl.ipynb              # GRPO reinforcement learning
+│
+├── tools/
+│   └── mcp/
+│       └── stock_server.py                # FastMCP server (Yahoo Finance, port 8001)
+│
+├── data/
+│   ├── winterfest/                        # WinterFest training data + outputs
+│   │   ├── training_data_examples_all.jsonl
+│   │   ├── docs/                          # Internal docs for RAG
+│   │   └── output/                        # Generated research reports
+│   └── bbb/                               # BBB trajectory data
+│       └── tool_calling_trajectories.jsonl
+│
+├── docs/                                  # Images, tutorial content, plan
+├── winterfest_talk.md                     # WinterFest talk outline
+├── birthday_bash_talk.md                  # BBB talk outline
+└── CLAUDE.md                              # Claude Code instructions
+```
+
+---
+
+## Getting Started
+
+```bash
+# Install dependencies
+uv sync
+
+# WinterFest pipeline
+python tools/mcp/stock_server.py           # Start MCP server (required for agent)
+jupyter notebook nb/winterfest/agent.ipynb  # Run research agent
+
+# BBB pipeline
+jupyter notebook nb/bbb/_phase_1_teacher.ipynb  # Teacher agent demo
+```
+
+Requires `.env` with `OPENAI_API_KEY` and `VECTOR_STORE_ID`.
+
+---
+
+## Key Technical Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Teacher API** | OpenAI Responses API | Native reasoning support, flat tool schemas |
+| **Base model** | Qwen3-4B | Best tool-calling benchmarks at size, native `<think>` support |
+| **Tool schemas** | Auto-generated from function signatures | Single source of truth, change function → schema updates |
+| **SFT data** | Tool outputs truncated to ~500-800 tokens | Standard practice (Hermes, ToolBench, APIGen all do this) |
+| **RL framework** | ART by OpenPipe | Only option for multi-turn GRPO with tool calling |
+| **Training** | Unsloth + LoRA on Databricks | 2x faster, 60% less memory, first-class Qwen3 support |
+
+---
+
+## Talk Materials
+
+- [WinterFest Talk](winterfest_talk.md) — *Agentic Systems in Practice* (Nov 2025)
+- [Birthday Bash Talk](birthday_bash_talk.md) — *From Prototype to Production: Teaching Small Models to Call Tools*
+
+## Sources
+
+- [Unsloth](https://docs.unsloth.ai/) — SFT & RL training framework
+- [ART (OpenPipe)](https://github.com/openpipe/art) — Agent Reinforcement Trainer
+- [FunctionGemma](https://arxiv.org/abs/2404.14105) — Tool-calling fine-tuning patterns
+- [ToolRL](https://arxiv.org/abs/2404.07995) — RL for tool-calling behavior
