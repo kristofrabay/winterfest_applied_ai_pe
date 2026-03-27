@@ -178,95 +178,95 @@ TOOL_FUNCTIONS = {
 
 
 # ---------------------------------------------------------------------------
-# OpenAI-compatible tool schemas
+# OpenAI Responses API tool schemas (flat format — not nested under "function")
 # ---------------------------------------------------------------------------
 
 TOOL_SCHEMAS = [
     {
         "type": "function",
-        "function": {
-            "name": "get_stock_news",
-            "description": "Get the 5 most recent news articles for a stock ticker from Yahoo Finance.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'NVDA'"},
-                },
-                "required": ["ticker"],
+        "name": "get_stock_news",
+        "description": "Get the 5 most recent news articles for a stock ticker from Yahoo Finance.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'NVDA'"},
             },
+            "required": ["ticker"],
+            "additionalProperties": False,
         },
+        "strict": True,
     },
     {
         "type": "function",
-        "function": {
-            "name": "get_financials",
-            "description": "Get financial statements (income statement, balance sheet, or cash flow) for a stock.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'NVDA'"},
-                    "statement_type": {
-                        "type": "string",
-                        "enum": ["income", "balance_sheet", "cashflow"],
-                        "description": "Type of financial statement to retrieve.",
-                    },
-                    "period": {
-                        "type": "string",
-                        "enum": ["annual", "quarterly"],
-                        "description": "Reporting period. Defaults to 'annual'.",
-                    },
+        "name": "get_financials",
+        "description": "Get financial statements (income statement, balance sheet, or cash flow) for a stock.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'NVDA'"},
+                "statement_type": {
+                    "type": "string",
+                    "enum": ["income", "balance_sheet", "cashflow"],
+                    "description": "Type of financial statement to retrieve.",
                 },
-                "required": ["ticker", "statement_type"],
+                "period": {
+                    "type": "string",
+                    "enum": ["annual", "quarterly"],
+                    "description": "Reporting period. Defaults to 'annual'.",
+                },
             },
+            "required": ["ticker", "statement_type", "period"],
+            "additionalProperties": False,
         },
+        "strict": True,
     },
     {
         "type": "function",
-        "function": {
-            "name": "get_price_history",
-            "description": "Get historical stock price data (OHLCV) with summary statistics.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'NVDA'"},
-                    "period": {
-                        "type": "string",
-                        "enum": ["1mo", "3mo", "6mo", "1y", "2y", "5y"],
-                        "description": "Time period to retrieve. Defaults to '6mo'.",
-                    },
-                    "interval": {
-                        "type": "string",
-                        "enum": ["1d", "1wk", "1mo"],
-                        "description": "Data granularity. Defaults to '1wk'.",
-                    },
+        "name": "get_price_history",
+        "description": "Get historical stock price data (OHLCV) with summary statistics.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'NVDA'"},
+                "period": {
+                    "type": "string",
+                    "enum": ["1mo", "3mo", "6mo", "1y", "2y", "5y"],
+                    "description": "Time period to retrieve. Defaults to '6mo'.",
                 },
-                "required": ["ticker"],
+                "interval": {
+                    "type": "string",
+                    "enum": ["1d", "1wk", "1mo"],
+                    "description": "Data granularity. Defaults to '1wk'.",
+                },
             },
+            "required": ["ticker", "period", "interval"],
+            "additionalProperties": False,
         },
+        "strict": True,
     },
     {
         "type": "function",
-        "function": {
-            "name": "get_recommendations",
-            "description": "Get analyst recommendations and recent upgrades/downgrades for a stock.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'NVDA'"},
-                    "months_back": {
-                        "type": "integer",
-                        "description": "Number of months of history to retrieve. Defaults to 12.",
-                    },
+        "name": "get_recommendations",
+        "description": "Get analyst recommendations and recent upgrades/downgrades for a stock.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker symbol, e.g. 'AAPL', 'NVDA'"},
+                "months_back": {
+                    "type": "integer",
+                    "description": "Number of months of history to retrieve. Defaults to 12.",
                 },
-                "required": ["ticker"],
             },
+            "required": ["ticker", "months_back"],
+            "additionalProperties": False,
         },
+        "strict": True,
     },
 ]
 
 
 # ---------------------------------------------------------------------------
-# Agent loop — works with any OpenAI-compatible endpoint
+# Agent loop — uses OpenAI Responses API with reasoning support
 # ---------------------------------------------------------------------------
 
 def run_tool_calling_agent(
@@ -277,70 +277,87 @@ def run_tool_calling_agent(
     tools: list[dict] | None = None,
     tool_functions: dict | None = None,
     max_iterations: int = 15,
-) -> list[dict]:
+    reasoning_effort: str = "medium",
+) -> dict:
     """
-    Run a tool-calling agent loop. Works with OpenAI API or any
-    OpenAI-compatible endpoint (vLLM, llama-server, etc.).
+    Run a tool-calling agent loop using the OpenAI Responses API.
 
-    Returns the full message history (the training trajectory).
+    Returns a dict with:
+      - "input": the full input list (for training data)
+      - "reasoning_summaries": list of reasoning summary strings
+      - "output_text": the final assistant response text
     """
     if tools is None:
         tools = TOOL_SCHEMAS
     if tool_functions is None:
         tool_functions = TOOL_FUNCTIONS
 
-    messages = [
-        {"role": "system", "content": system_prompt},
+    input_list = [
+        {"role": "developer", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
+    reasoning_summaries = []
+
     for i in range(max_iterations):
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=model,
-            messages=messages,
+            input=input_list,
             tools=tools,
-            tool_choice="auto",
+            reasoning={"effort": reasoning_effort, "summary": "auto"},
         )
 
-        choice = response.choices[0]
-        assistant_msg = {"role": "assistant", "content": choice.message.content or ""}
+        # Collect reasoning summaries from this turn
+        for item in response.output:
+            if item.type == "reasoning" and getattr(item, "summary", None):
+                for s in item.summary:
+                    summary_text = getattr(s, "text", str(s))
+                    reasoning_summaries.append(summary_text)
+                    print(f"  [{i+1}] Reasoning: {summary_text[:120]}...")
 
-        # Check for tool calls
-        if choice.message.tool_calls:
-            assistant_msg["tool_calls"] = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
-                }
-                for tc in choice.message.tool_calls
-            ]
-            messages.append(assistant_msg)
+        # Check if there are any function calls in this turn
+        has_tool_calls = any(
+            item.type == "function_call" for item in response.output
+        )
 
-            # Execute each tool call
-            for tc in choice.message.tool_calls:
-                fn_name = tc.function.name
-                fn_args = json.loads(tc.function.arguments)
+        if not has_tool_calls:
+            # Model is done — no more tool calls
+            print(f"  [{i+1}] Agent finished — produced final response")
+            break
+
+        # Append ALL output items (reasoning + function_calls) to preserve context
+        input_list += response.output
+
+        # Execute each function call and append results
+        for item in response.output:
+            if item.type == "function_call":
+                fn_name = item.name
+                fn_args = json.loads(item.arguments)
 
                 if fn_name in tool_functions:
                     result = tool_functions[fn_name](**fn_args)
                 else:
                     result = json.dumps({"error": f"Unknown tool: {fn_name}"})
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": result,
+                input_list.append({
+                    "type": "function_call_output",
+                    "call_id": item.call_id,
+                    "output": result,
                 })
 
                 print(f"  [{i+1}] Called {fn_name}({', '.join(f'{k}={v!r}' for k, v in fn_args.items())})")
-        else:
-            # No tool calls — model is done
-            messages.append(assistant_msg)
-            print(f"  [{i+1}] Agent finished — produced final response")
-            break
 
-    return messages
+    return {
+        "input": input_list,
+        "output": response.output,
+        "output_text": response.output_text,
+        "reasoning_summaries": reasoning_summaries,
+        "usage": {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "reasoning_tokens": getattr(
+                getattr(response.usage, "output_tokens_details", None),
+                "reasoning_tokens", 0
+            ),
+        },
+    }
