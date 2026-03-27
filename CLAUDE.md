@@ -13,11 +13,22 @@ The system is a **two-stage pipeline** for automated equity investment research:
 ### Current Conference Goal (Big Birthday Bash — BBB)
 
 Teach **Qwen3-4B** to be the research agent itself via tool-calling fine-tuning + RL:
-1. **Teacher Agent** (`nb/bbb/tool_calling_agent.ipynb`) — GPT-5.4 agent with stock tools, generates training trajectories
+1. **Teacher Agent** (`nb/bbb/tool_calling_agent.ipynb`) — GPT-5.4 via Responses API with reasoning, generates training trajectories. DONE.
 2. **Data Generation** (`nb/bbb/tool_calling_data_generator.ipynb`) — Run teacher on ~200 companies, save full tool-calling trajectories
 3. **Baseline** (`nb/bbb/tool_calling_baseline.ipynb`) — Run raw Qwen3-4B with tools to establish "before" metrics
 4. **SFT** (`nb/bbb/tool_calling_sft.ipynb`) — Fine-tune Qwen3-4B on trajectories via Unsloth
 5. **RL** (`nb/bbb/tool_calling_rl.ipynb`) — GRPO via ART (OpenPipe) to refine tool-calling behavior
+
+### BBB Code Structure (`nb/bbb/`)
+- `tools.py` — Stock tool functions + auto-generated OpenAI Responses API schemas (single source of truth)
+- `agent.py` — Tool-calling agent loop using Responses API with reasoning support
+- Notebooks import from these shared modules
+
+### Key Technical Decisions
+- **API:** OpenAI Responses API (not Chat Completions) — native reasoning support, `function_call` items, reasoning summaries
+- **Tool schemas:** Auto-generated from function signatures via `_build_tool_schema()` — change the function, schema updates automatically
+- **SFT data:** Tool outputs must be truncated to ~500-800 tokens before training (standard practice — all major datasets do this). Raw yfinance responses are 2000-3000 tokens each, which wastes compute on masked tokens.
+- **max_seq_length:** 8192 for SFT (compress data to fit, don't expand window for zero-loss masked tokens)
 
 Full plan: `docs/tutorial_content/claude_plan.md`
 

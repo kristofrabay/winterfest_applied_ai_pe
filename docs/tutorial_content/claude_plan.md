@@ -65,15 +65,24 @@ vllm serve Qwen/Qwen3-4B --enable-auto-tool-choice --tool-call-parser hermes --e
 
 ---
 
-## Phase 1: Build the Teacher Agent & Tool-Calling Loop
+## Phase 1: Build the Teacher Agent & Tool-Calling Loop — DONE
 
-**Goal:** Create a simple, self-contained tool-calling agent using OpenAI's API (GPT-5.4) that we can run 1000+ times to generate training trajectories.
+**Goal:** Create a simple, self-contained tool-calling agent using the OpenAI Responses API (GPT-5.4) with reasoning support.
 
-### Notebook: `nb/bbb/tool_calling_agent.ipynb`
+### Files created:
+- `nb/bbb/tools.py` — Tool functions + auto-generated Responses API schemas via `_build_tool_schema()`
+- `nb/bbb/agent.py` — `run_tool_calling_agent()` loop using `client.responses.create()`
+- `nb/bbb/tool_calling_agent.ipynb` — Demo notebook, tested with NVDA
 
-**1a. Define the tools as plain Python functions + OpenAI tool schemas**
+### Key implementation details:
+- **Responses API** (not Chat Completions) — `function_call` items, `function_call_output` responses, reasoning items passed between turns
+- **Reasoning summaries** captured via `reasoning={"effort": "medium", "summary": "auto"}`
+- **Tool schemas auto-generated** from function signatures — change a function, schema updates
+- **Agent loop** works with any OpenAI-compatible endpoint (swap `base_url` for local Qwen3 inference)
 
-Reuse the 4 existing MCP tools from `tools/mcp/stock_server.py`, but expose them as **direct Python functions** (no MCP server needed). This simplifies the data collection pipeline:
+**1a. Tools defined as plain Python functions (in `nb/bbb/tools.py`)**
+
+Reused yfinance logic from `tools/mcp/stock_server.py` as synchronous functions:
 
 ```python
 # Tools to implement (wrapping existing yfinance logic):
@@ -175,7 +184,18 @@ After collection, filter out:
 - Trajectories where the final memo is too short (<500 chars)
 - Duplicates or near-duplicates
 
-**Output:** `data/tool_calling_trajectories.jsonl` (~150-200 clean trajectories)
+**2f. Tool output truncation for SFT**
+
+Raw yfinance tool outputs are 2000-3000 tokens each. With 4-6 calls per trajectory, tool results alone consume 10,000-15,000 tokens — far beyond our 8192 max_seq_length. Since tool results are masked (labels=-100) during SFT, they contribute zero gradient — they're pure context overhead.
+
+**Strategy:** Truncate each tool result to ~500-800 tokens max before saving to training JSONL.
+- Preserve the first ~500 tokens (headers, structure, key data points)
+- Append `\n... [truncated]` marker
+- This brings total trajectory to ~7,000 tokens (fits 8192 comfortably)
+
+This is standard practice: Hermes uses 50-200 token synthetic outputs, ToolBench truncates to 2048 characters, APIGen keeps outputs under 200 tokens. All major tool-calling datasets use short outputs.
+
+**Output:** `data/tool_calling_trajectories.jsonl` (~150-200 clean trajectories, tool outputs truncated)
 
 ---
 
