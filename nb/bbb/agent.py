@@ -15,7 +15,7 @@ def run_tool_calling_agent(
     tools: list[dict] | None = None,
     tool_functions: dict | None = None,
     max_iterations: int = 15,
-    reasoning_effort: str = "medium",
+    reasoning_effort: str = "low",
 ) -> dict:
     """
     Run a tool-calling agent loop using the OpenAI Responses API.
