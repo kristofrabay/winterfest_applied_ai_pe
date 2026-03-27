@@ -1,13 +1,17 @@
 """
-Tool-calling agent loop using the OpenAI Responses API with reasoning support.
+Async tool-calling agent loop using the OpenAI Responses API with reasoning support.
+
+Expects an AsyncOpenAI client. Tool functions (synchronous yfinance calls) are
+dispatched to a thread pool via asyncio.to_thread so they don't block the event loop.
 """
 
+import asyncio
 import json
 
 from .tools import TOOL_SCHEMAS, TOOL_FUNCTIONS
 
 
-def run_tool_calling_agent(
+async def run_tool_calling_agent(
     client,
     model: str,
     user_prompt: str,
@@ -15,10 +19,15 @@ def run_tool_calling_agent(
     tools: list[dict] | None = None,
     tool_functions: dict | None = None,
     max_iterations: int = 15,
-    reasoning_effort: str = "low",
+    reasoning_effort: str = "medium",
+    verbose: bool = True,
 ) -> dict:
     """
-    Run a tool-calling agent loop using the OpenAI Responses API.
+    Run a tool-calling agent loop using the OpenAI Responses API (async).
+
+    Args:
+        client: AsyncOpenAI client instance.
+        verbose: If True, print reasoning summaries and tool calls to stdout.
 
     Returns a dict with:
       - "input": the full input list (for training data)
@@ -40,7 +49,7 @@ def run_tool_calling_agent(
     reasoning_summaries = []
 
     for i in range(max_iterations):
-        response = client.responses.create(
+        response = await client.responses.create(
             model=model,
             input=input_list,
             tools=tools,
@@ -53,7 +62,8 @@ def run_tool_calling_agent(
                 for s in item.summary:
                     summary_text = getattr(s, "text", str(s))
                     reasoning_summaries.append(summary_text)
-                    print(f"  [{i+1}] Reasoning: {summary_text[:120]}...")
+                    if verbose:
+                        print(f"  [{i+1}] Reasoning: {summary_text[:120]}...")
 
         # Check if there are any function calls in this turn
         has_tool_calls = any(
@@ -61,20 +71,23 @@ def run_tool_calling_agent(
         )
 
         if not has_tool_calls:
-            print(f"  [{i+1}] Agent finished — produced final response")
+            if verbose:
+                print(f"  [{i+1}] Agent finished — produced final response")
             break
 
         # Append ALL output items (reasoning + function_calls) to preserve context
         input_list += response.output
 
-        # Execute each function call and append results
+        # Execute each function call — run sync yfinance in thread pool
         for item in response.output:
             if item.type == "function_call":
                 fn_name = item.name
                 fn_args = json.loads(item.arguments)
 
                 if fn_name in tool_functions:
-                    result = tool_functions[fn_name](**fn_args)
+                    result = await asyncio.to_thread(
+                        tool_functions[fn_name], **fn_args
+                    )
                 else:
                     result = json.dumps({"error": f"Unknown tool: {fn_name}"})
 
@@ -84,7 +97,11 @@ def run_tool_calling_agent(
                     "output": result,
                 })
 
-                print(f"  [{i+1}] Called {fn_name}({', '.join(f'{k}={v!r}' for k, v in fn_args.items())})")
+                if verbose:
+                    args_str = ", ".join(
+                        f"{k}={v!r}" for k, v in fn_args.items()
+                    )
+                    print(f"  [{i+1}] Called {fn_name}({args_str})")
 
     return {
         "input": input_list,

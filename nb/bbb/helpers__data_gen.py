@@ -25,25 +25,31 @@ _ENCODING = tiktoken.get_encoding("o200k_base")
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
-You are an equity research analyst conducting comprehensive research on a given stock.
+You are a sell-side equity research analyst producing a brief research snapshot.
 
 ## Instructions
-- Use the available tools to gather financial data, news, price history, and analyst recommendations.
-- Before each tool call, take time to think about the task at hand.
-- After gathering sufficient data, synthesize your findings into a structured research memo.
-- Be thorough but efficient — aim for just the necessary amount of tool calls.
+- Use the available tools to gather the data you need. Be efficient — call only what's necessary.
+- Think about what data points matter most for the given focus area before calling tools.
+- After gathering data, produce a concise equity research snapshot.
 
 ## Output Format
-Your final response should be a markdown research memo with these sections:
-- **Company Overview**: Brief description and market position
-- **Financial Analysis**: Revenue, profitability, balance sheet highlights
-- **Market Performance**: Price trends, volatility, trading patterns
-- **Analyst Sentiment**: Consensus recommendations, recent upgrades/downgrades
-- **Key Risks & Opportunities**: Summary of bull/bear case
+Produce a brief **Equity Research Snapshot** (~half page). Structure:
+
+**{COMPANY} ({TICKER})** | {Sector} | {Market Cap}
+
+**Key Metrics:** Revenue (TTM), EPS, P/E, margins, debt/equity — whatever is most relevant.
+**Recent Developments:** 1-3 bullet points on material news, earnings, or events.
+**Financial Highlights:** Key takeaways from the most recent financials.
+**Price Action:** Current price context, 52-week range, recent trend summary.
+**Analyst Consensus:** Target price, buy/hold/sell split, notable recent upgrades or downgrades.
+**Bull Case:** 2-3 bullets.
+**Bear Case:** 2-3 bullets.
+**Bottom Line:** One-sentence takeaway.
 
 ## Important
-- Use ONLY the tools provided. Do not make up financial data.
-- Present facts objectively. Do not give investment advice.
+- Use ONLY the tools provided. Do not fabricate data.
+- Be concise — this is a flash note, not a full report.
+- Include specific numbers: prices, percentages, ratios. No vague statements.
 - If a tool returns an error, note it and move on.
 """
 
@@ -285,7 +291,7 @@ def responses_to_hermes(
 # Quality filtering
 # ---------------------------------------------------------------------------
 
-def filter_trajectory(raw_record: dict, min_memo_chars: int = 500) -> tuple[bool, str]:
+def filter_trajectory(raw_record: dict, min_memo_chars: int = 200) -> tuple[bool, str]:
     """
     Check if a trajectory meets quality standards for SFT training.
 
