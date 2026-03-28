@@ -1,14 +1,19 @@
 """
-Async tool-calling agent loop using the OpenAI Responses API with reasoning support.
+Async tool-calling agent loops.
 
-Expects an AsyncOpenAI client. Tool functions (synchronous yfinance calls) are
-dispatched to a thread pool via asyncio.to_thread so they don't block the event loop.
+Two variants:
+  - run_tool_calling_agent()      — OpenAI Responses API (reasoning models, GPT-5.x)
+  - run_tool_calling_agent_chat() — Chat Completions API (local servers, Ollama, mlx-lm)
+
+Both are async. Tool functions (synchronous yfinance calls) are dispatched to a
+thread pool via asyncio.to_thread so they don't block the event loop.
 """
 
 import asyncio
 import json
 
 from .tools import TOOL_SCHEMAS, TOOL_FUNCTIONS
+from .helpers__data_gen import _responses_tool_to_chat
 
 
 async def run_tool_calling_agent(
@@ -116,4 +121,133 @@ async def run_tool_calling_agent(
                 "reasoning_tokens", 0,
             ),
         },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Chat Completions API variant (Ollama, llama-server, mlx-lm, etc.)
+# ---------------------------------------------------------------------------
+
+# Auto-generate Chat Completions tool schemas from the Responses API ones
+TOOL_SCHEMAS_CHAT = [_responses_tool_to_chat(t) for t in TOOL_SCHEMAS]
+
+
+async def run_tool_calling_agent_chat(
+    client,
+    model: str,
+    user_prompt: str,
+    system_prompt: str,
+    tools: list[dict] | None = None,
+    tool_functions: dict | None = None,
+    max_iterations: int = 15,
+    verbose: bool = True,
+    temperature: float = 0.7,
+) -> dict:
+    """
+    Run a tool-calling agent loop using the Chat Completions API (async).
+
+    Works with any OpenAI-compatible server: Ollama, llama-server, mlx-lm, vLLM, etc.
+    No reasoning support — use run_tool_calling_agent() for Responses API models.
+
+    Returns the SAME shape as run_tool_calling_agent():
+      - "input": the full conversation history (list of message dicts)
+      - "output": the final assistant message(s) as a list
+      - "output_text": the final assistant response text
+      - "reasoning_summaries": always [] (Chat Completions has no reasoning)
+      - "usage": token usage breakdown
+    """
+    if tools is None:
+        tools = TOOL_SCHEMAS_CHAT
+    if tool_functions is None:
+        tool_functions = TOOL_FUNCTIONS
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    total_usage = {"input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0}
+
+    for i in range(max_iterations):
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+        )
+
+        # Track usage if provided
+        if response.usage:
+            total_usage["input_tokens"] += response.usage.prompt_tokens or 0
+            total_usage["output_tokens"] += response.usage.completion_tokens or 0
+
+        msg = response.choices[0].message
+
+        # No tool calls — final response
+        if not msg.tool_calls:
+            messages.append({
+                "role": "assistant",
+                "content": msg.content or "",
+            })
+            if verbose:
+                print(f"  [{i+1}] Agent finished — produced final response")
+            break
+
+        # Append assistant message with tool calls
+        messages.append({
+            "role": "assistant",
+            "content": msg.content,
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in msg.tool_calls
+            ],
+        })
+
+        # Execute each tool call
+        for tc in msg.tool_calls:
+            fn_name = tc.function.name
+            fn_args = json.loads(tc.function.arguments)
+
+            if fn_name in tool_functions:
+                result = await asyncio.to_thread(
+                    tool_functions[fn_name], **fn_args
+                )
+            else:
+                result = json.dumps({"error": f"Unknown tool: {fn_name}"})
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result,
+            })
+
+            if verbose:
+                args_str = ", ".join(
+                    f"{k}={v!r}" for k, v in fn_args.items()
+                )
+                print(f"  [{i+1}] Called {fn_name}({args_str})")
+
+    # Extract final output text
+    output_text = ""
+    for m in reversed(messages):
+        if m["role"] == "assistant" and not m.get("tool_calls"):
+            output_text = m.get("content", "")
+            break
+
+    # Build output list (final assistant message(s) — matches Responses API shape)
+    final_output = [m for m in messages if m["role"] == "assistant" and not m.get("tool_calls")]
+
+    return {
+        "input": messages,
+        "output": final_output,
+        "output_text": output_text,
+        "reasoning_summaries": [],
+        "usage": total_usage,
     }
