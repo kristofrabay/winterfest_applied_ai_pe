@@ -194,6 +194,7 @@ def run_local_agent_loop(
 def compute_reward(
     messages: list[dict],
     valid_tool_names: set[str],
+    reasoning_summaries: list[str] | None = None,
 ) -> dict:
     """
     Score a tool-calling trajectory with a composite reward function.
@@ -212,11 +213,16 @@ def compute_reward(
     has_thinking = False
     has_final_response = False
 
+    # Check reasoning_summaries (from Chat Completions — server separates thinking)
+    if reasoning_summaries:
+        has_thinking = True
+
     for msg in messages:
         if msg["role"] == "assistant":
             tcs = msg.get("tool_calls", [])
             tool_calls.extend(tcs)
             content = msg.get("content", "") or ""
+            # Check for <think> tags in content (Unsloth / raw inference path)
             if "<think>" in content:
                 has_thinking = True
             if not tcs and len(content) > 50:

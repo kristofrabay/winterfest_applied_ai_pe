@@ -33,6 +33,7 @@ Today's date is {datetime.now().strftime("%Y-%m-%d")}.
 ## Instructions
 - Use the available tools to gather the data you need. Be efficient — call only what's necessary.
 - Think about what data points matter most for the given focus area before calling tools.
+- Thinking instructions: only LOW / CONCISE think is enabled or choose /nothink.
 - After gathering data, produce a concise equity research snapshot.
 
 ## Output Format
@@ -54,7 +55,7 @@ Produce a brief **Equity Research Snapshot** (~half page). Structure:
 - Be concise — this is a flash note, not a full report.
 - Include specific numbers: prices, percentages, ratios. No vague statements.
 - If a tool returns an error, note it and move on.
-- Keep your internal reasoning brief — a few sentences of planning, not lengthy analysis. This means think / thinking / reasoning effort should be low and concise!
+- Keep your internal reasoning brief — a few sentences of planning, not lengthy analysis.
 """
 
 
