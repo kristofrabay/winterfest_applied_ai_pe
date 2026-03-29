@@ -65,20 +65,19 @@ This project implements an end-to-end AI system for automated public equity inve
 │   │   ├── agent.ipynb                    # Research Agent (GPT-5.1 + MCP)
 │   │   ├── training_data_generator.ipynb  # 5K synthetic verdicts via GPT-4.1-mini
 │   │   ├── training_recipe.ipynb          # SFT: Qwen3-4B-Thinking analyst
-│   │   └── helpers/                       # Streaming, LLM utilities
+│   │   ├── helpers/                       # Streaming, LLM utilities
+│   │   └── tools/mcp/stock_server.py     # FastMCP server (Yahoo Finance, port 8001)
 │   │
 │   └── bbb/                               # Big Birthday Bash notebooks
 │       ├── tools.py                       # Stock tool functions + auto-generated schemas
-│       ├── agent.py                       # Tool-calling agent loop (Responses API)
+│       ├── agent.py                       # Tool-calling agent loops (Responses API + Chat Completions)
+│       ├── helpers__data_gen.py            # Data gen: serialization, truncation, format conversion
+│       ├── helpers__inference.py           # Local inference: tool call parsing, reward function
 │       ├── _phase_1_teacher.ipynb         # Teacher agent demo (GPT-5.4)
 │       ├── _phase_2_data_gen.ipynb        # Bulk trajectory generation
-│       ├── _phase_3_baseline.ipynb        # Raw Qwen3-4B with tools
+│       ├── _phase_3_baseline.ipynb        # Raw Qwen3-4B with tools (MLX + Databricks)
 │       ├── _phase_4_sft.ipynb             # SFT fine-tuning
 │       └── _phase_5_rl.ipynb              # GRPO reinforcement learning
-│
-├── tools/
-│   └── mcp/
-│       └── stock_server.py                # FastMCP server (Yahoo Finance, port 8001)
 │
 ├── data/
 │   ├── winterfest/                        # WinterFest training data + outputs
@@ -86,7 +85,10 @@ This project implements an end-to-end AI system for automated public equity inve
 │   │   ├── docs/                          # Internal docs for RAG
 │   │   └── output/                        # Generated research reports
 │   └── bbb/                               # BBB trajectory data
-│       └── tool_calling_trajectories.jsonl
+│       ├── trajectories_raw.jsonl         # Raw Responses API trajectories
+│       ├── trajectories_sft.jsonl         # Converted to Hermes format for SFT
+│       ├── baseline_results_mlx.jsonl     # MLX local baseline metrics
+│       └── baseline_examples_mlx.json     # Best/worst examples for talk
 │
 ├── docs/                                  # Images, tutorial content, plan
 ├── winterfest_talk.md                     # WinterFest talk outline
@@ -103,7 +105,7 @@ This project implements an end-to-end AI system for automated public equity inve
 uv sync
 
 # WinterFest pipeline
-python tools/mcp/stock_server.py           # Start MCP server (required for agent)
+python nb/winterfest/tools/mcp/stock_server.py  # Start MCP server (required for agent)
 jupyter notebook nb/winterfest/agent.ipynb  # Run research agent
 
 # BBB pipeline

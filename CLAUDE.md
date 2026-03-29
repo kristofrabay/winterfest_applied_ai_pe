@@ -21,7 +21,9 @@ Teach **Qwen3-4B** to be the research agent itself via tool-calling fine-tuning 
 
 ### BBB Code Structure (`nb/bbb/`)
 - `tools.py` — Stock tool functions + auto-generated OpenAI Responses API schemas (single source of truth)
-- `agent.py` — Tool-calling agent loop using Responses API with reasoning support
+- `agent.py` — Two async agent loops: `run_tool_calling_agent()` (Responses API for GPT-5.x) and `run_tool_calling_agent_chat()` (Chat Completions for local servers — Ollama, mlx-lm, llama-server)
+- `helpers__data_gen.py` — System prompt, ticker list, format conversion (Responses API → Hermes), truncation, quality filtering
+- `helpers__inference.py` — `<tool_call>` parsing, local Unsloth agent loop, composite reward function
 - Notebooks import from these shared modules
 
 ### Key Technical Decisions
@@ -37,7 +39,7 @@ Full plan: `docs/tutorial_content/claude_plan.md`
 ```bash
 # Environment setup
 uv sync                                    # Install all dependencies
-python tools/mcp/stock_server.py           # Start MCP server on port 8001 (must be running before winterfest agent notebook)
+python nb/winterfest/tools/mcp/stock_server.py  # Start MCP server on port 8001 (must be running before winterfest agent notebook)
 
 # WinterFest notebooks (original talk)
 jupyter notebook nb/winterfest/agent.ipynb
@@ -54,28 +56,28 @@ jupyter notebook nb/bbb/_phase_5_rl.ipynb
 
 ## Architecture Details
 
-### MCP Stock Server (`tools/mcp/stock_server.py`)
+### MCP Stock Server (`nb/winterfest/tools/mcp/stock_server.py`)
 - Built with `fastmcp`, runs on HTTP port 8001
 - 4 tools via Yahoo Finance (`yfinance`): `get_stock_news`, `get_financials`, `get_price_history`, `get_recommendations`
 - The agent notebook connects to this as an MCP tool source — the server **must be running** before executing the agent
 
 ### Research Agent (`nb/winterfest/agent.ipynb`)
 - Uses `openai-agents` SDK (OpenAI's agentic framework) with `gpt-5.1`
-- Tools: Web Search, File Search (RAG over `data/docs/`), Code Interpreter, MCP stock tools
-- Output: Structured markdown reports covering Competition, Customers, Financials, Growth Opportunities → saved to `data/output/`
-- Streaming helper in `nb/helpers/llm_helpers.py` handles all event types from the agent SDK
+- Tools: Web Search, File Search (RAG over `data/winterfest/docs/`), Code Interpreter, MCP stock tools
+- Output: Structured markdown reports covering Competition, Customers, Financials, Growth Opportunities → saved to `data/winterfest/output/`
+- Streaming helper in `nb/winterfest/helpers/llm_helpers.py` handles all event types from the agent SDK
 
 ### Training Data Pipeline (`nb/winterfest/training_data_generator.ipynb`)
 - Generates ~5,000 synthetic examples using `gpt-4.1-mini`
 - Each example: fictional company report → expert investment verdict with reasoning
-- Output format: JSONL files in `data/` (main dataset: `data/training_data_examples_all.jsonl`)
+- Output format: JSONL files in `data/winterfest/` (main dataset: `data/winterfest/training_data_examples_all.jsonl`)
 - Includes a hallucination detection dataset variant
 
 ### Fine-Tuning (`nb/winterfest/training_recipe.ipynb`)
 - Base model: `unsloth/Qwen3-4B-Thinking` (4-bit quantized)
 - Framework: Unsloth with LoRA adapters
 - Training format: model outputs `<think>` block (chain-of-thought) followed by structured verdict
-- Training history tracked in `data/training_history.csv`
+- Training history tracked in `data/winterfest/training_history.csv`
 
 ## Key Dependencies
 
@@ -97,4 +99,4 @@ jupyter notebook nb/bbb/_phase_5_rl.ipynb
 - Research memos must follow the structured markdown format (Competition / Customers / Financials / Growth Opportunities) — this is the contract between Stage 1 output and Stage 2 input
 - Training data uses chat-completion format with `<think>` tags for reasoning traces
 - The MCP server uses HTTP transport (not stdio) — relevant when integrating with different agent frameworks
-- Individual company output files in `data/output/individual/` are gitignored
+- Individual company output files in `data/winterfest/output/individual/` are gitignored
