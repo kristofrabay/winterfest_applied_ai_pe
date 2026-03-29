@@ -129,7 +129,7 @@ Getting a thinking model to behave requires the right sampling parameters. Wrong
 - Never use greedy decoding (`temperature=0`) with thinking models — causes infinite loops
 - Never put "use low thinking" or "/nothink" in the system prompt for Qwen3.5 — the model meta-reasons about whether to think and loops
 - Qwen3.5 `/think` and `/nothink` soft switches are Qwen3-only — they silently fail on Qwen3.5
-- Never skip `--prompt-cache-warmup` when serving thinking models locally — cold KV cache causes 0% reuse and the first request spirals into extremely long reasoning ([mlx-lm#1042](https://github.com/ml-explore/mlx-lm/pull/1042))
+- Always send a warm-up request after starting a local server with thinking models — cold KV cache causes 0% reuse and the first request spirals into extremely long reasoning ([mlx-lm#1042](https://github.com/ml-explore/mlx-lm/pull/1042))
 
 ### Expected Baseline Failures
 
