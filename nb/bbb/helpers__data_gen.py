@@ -10,6 +10,7 @@ Data generation helpers for Phase 2 of the BBB pipeline.
 
 import json
 import random
+from datetime import datetime
 
 import tiktoken
 
@@ -24,8 +25,10 @@ _ENCODING = tiktoken.get_encoding("o200k_base")
 # System prompt — shared between Phase 1 (teacher) and Phase 2 (data gen)
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """\
+SYSTEM_PROMPT = f"""\
 You are a sell-side equity research analyst producing a brief research snapshot.
+
+Today's date is {datetime.now().strftime("%Y-%m-%d")}.
 
 ## Instructions
 - Use the available tools to gather the data you need. Be efficient — call only what's necessary.
@@ -35,7 +38,7 @@ You are a sell-side equity research analyst producing a brief research snapshot.
 ## Output Format
 Produce a brief **Equity Research Snapshot** (~half page). Structure:
 
-**{COMPANY} ({TICKER})** | {Sector} | {Market Cap}
+**{{COMPANY}} ({{TICKER}})** | {{Sector}} | {{Market Cap}}
 
 **Key Metrics:** Revenue (TTM), EPS, P/E, margins, debt/equity — whatever is most relevant.
 **Recent Developments:** 1-3 bullet points on material news, earnings, or events.
