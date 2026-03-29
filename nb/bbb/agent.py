@@ -142,6 +142,8 @@ async def run_tool_calling_agent_chat(
     max_iterations: int = 15,
     verbose: bool = True,
     temperature: float = 0.7,
+    max_tokens: int = 4096,
+    max_tool_output_chars: int = 2000,
 ) -> dict:
     """
     Run a tool-calling agent loop using the Chat Completions API (async).
@@ -156,10 +158,10 @@ async def run_tool_calling_agent_chat(
       - "reasoning_summaries": always [] (Chat Completions has no reasoning)
       - "usage": token usage breakdown
     """
-    if tools is None:
-        tools = TOOL_SCHEMAS_CHAT
-    if tool_functions is None:
-        tool_functions = TOOL_FUNCTIONS
+    #if tools is None:
+    #    tools = TOOL_SCHEMAS_CHAT
+    #if tool_functions is None:
+    #    tool_functions = TOOL_FUNCTIONS
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -174,6 +176,7 @@ async def run_tool_calling_agent_chat(
             messages=messages,
             tools=tools,
             temperature=temperature,
+            max_tokens=max_tokens,
         )
 
         # Track usage if provided
@@ -221,6 +224,10 @@ async def run_tool_calling_agent_chat(
                 )
             else:
                 result = json.dumps({"error": f"Unknown tool: {fn_name}"})
+
+            # Truncate tool output to avoid flooding the context window
+            if len(result) > max_tool_output_chars:
+                result = result[:max_tool_output_chars] + "\n... [truncated]"
 
             messages.append({
                 "role": "tool",
