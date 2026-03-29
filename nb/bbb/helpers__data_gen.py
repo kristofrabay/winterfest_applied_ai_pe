@@ -140,7 +140,7 @@ def serialize_input_list(input_list: list) -> list[dict]:
 # Truncation — reduce tool output tokens for SFT
 # ---------------------------------------------------------------------------
 
-def truncate_tool_output(output: str, max_tokens: int = 600) -> str:
+def truncate_tool_output(output: str, max_tokens: int = 250) -> str:
     """
     Truncate a tool output string to max_tokens.
 
@@ -184,7 +184,7 @@ def _responses_tool_to_chat(tool: dict) -> dict:
 
 def responses_to_hermes(
     raw_record: dict,
-    max_tool_tokens: int = 600,
+    max_tool_tokens: int = 250,
 ) -> dict | None:
     """
     Convert a saved Responses API trajectory to Hermes/chat format for SFT.
