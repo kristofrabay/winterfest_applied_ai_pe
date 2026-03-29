@@ -141,7 +141,9 @@ async def run_tool_calling_agent_chat(
     tool_functions: dict | None = None,
     max_iterations: int = 15,
     verbose: bool = True,
-    temperature: float = 0.7,
+    temperature: float = 0.6,
+    top_p: float = 0.95,
+    presence_penalty: float = 1.5,
     max_tokens: int = 4096,
     max_tool_output_chars: int = 2000,
 ) -> dict:
@@ -149,13 +151,14 @@ async def run_tool_calling_agent_chat(
     Run a tool-calling agent loop using the Chat Completions API (async).
 
     Works with any OpenAI-compatible server: Ollama, llama-server, mlx-lm, vLLM, etc.
-    No reasoning support — use run_tool_calling_agent() for Responses API models.
+    Servers that expose reasoning (e.g. mlx_lm.server) have it captured and injected
+    back into assistant messages as <think> tags, so the full trajectory is self-contained.
 
     Returns the SAME shape as run_tool_calling_agent():
       - "input": the full conversation history (list of message dicts)
       - "output": the final assistant message(s) as a list
       - "output_text": the final assistant response text
-      - "reasoning_summaries": always [] (Chat Completions has no reasoning)
+      - "reasoning_summaries": list of reasoning strings (also in messages as <think> tags)
       - "usage": token usage breakdown
     """
     #if tools is None:
@@ -177,6 +180,8 @@ async def run_tool_calling_agent_chat(
             messages=messages,
             tools=tools,
             temperature=temperature,
+            top_p=top_p,
+            presence_penalty=presence_penalty,
             max_tokens=max_tokens,
         )
 
@@ -195,11 +200,17 @@ async def run_tool_calling_agent_chat(
                 preview = reasoning[:120].replace("\n", " ")
                 print(f"  [{i+1}] Reasoning: {preview}...")
 
+        # Rebuild content with <think> tags so reasoning stays in the message chain
+        content = msg.content or ""
+        if reasoning:
+            think_block = f"<think>\n{reasoning.strip()}\n</think>"
+            content = f"{think_block}\n\n{content.strip()}" if content.strip() else think_block
+
         # No tool calls — final response
         if not msg.tool_calls:
             messages.append({
                 "role": "assistant",
-                "content": msg.content or "",
+                "content": content,
             })
             if verbose:
                 print(f"  [{i+1}] Agent finished — produced final response")
@@ -208,7 +219,7 @@ async def run_tool_calling_agent_chat(
         # Append assistant message with tool calls
         messages.append({
             "role": "assistant",
-            "content": msg.content,
+            "content": content if content.strip() else None,
             "tool_calls": [
                 {
                     "id": tc.id,

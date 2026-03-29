@@ -114,13 +114,29 @@ tokenizer.apply_chat_template(messages, tools=tools, enable_thinking=True)
 # Model outputs: <tool_call>{"name": "get_financials", "arguments": {...}}</tool_call>
 ```
 
+### Inference Parameters Matter (Learned the Hard Way)
+
+Getting a thinking model to behave requires the right sampling parameters. Wrong settings cause infinite reasoning loops where the model spirals ("Wait, I should check... Yes. Okay. Wait, I should check...").
+
+| Parameter | Value | Why |
+|-----------|-------|-----|
+| `temperature` | **0.6** | Official Qwen3 recommendation for thinking mode. Too low → repetition loops. |
+| `top_p` | **0.95** | Keeps diversity while staying coherent. |
+| `presence_penalty` | **1.5** | Breaks repetition loops by penalizing already-generated tokens. Official recommendation. |
+| `enable_thinking` | **True** | But do NOT mention thinking in the prompt. Qwen3.5 doesn't support `/nothink` soft switches — meta-instructions about thinking confuse the model. |
+
+**What NOT to do:**
+- Never use greedy decoding (`temperature=0`) with thinking models — causes infinite loops
+- Never put "use low thinking" or "/nothink" in the system prompt for Qwen3.5 — the model meta-reasons about whether to think and loops
+- Qwen3.5 `/think` and `/nothink` soft switches are Qwen3-only — they silently fail on Qwen3.5
+
 ### Expected Baseline Failures
 
 - Wrong tool selection (calls `get_stock_news` when it needs `get_financials`)
 - Malformed JSON arguments (missing required params, wrong types)
 - Infinite looping (calls the same tool repeatedly)
 - No final output (keeps calling tools, never writes the memo)
-- No reasoning (jumps to tool calls without thinking)
+- **Thinking loops** — model spirals in `<think>` block without producing output
 
 These failures are **the point** — they demonstrate why fine-tuning matters.
 

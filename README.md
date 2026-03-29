@@ -126,6 +126,8 @@ Requires `.env` with `OPENAI_API_KEY` and `VECTOR_STORE_ID`.
 | **SFT data** | Tool outputs truncated to ~500-800 tokens | Standard practice (Hermes, ToolBench, APIGen all do this) |
 | **RL framework** | ART by OpenPipe | Only option for multi-turn GRPO with tool calling |
 | **Training** | Unsloth + LoRA on Databricks | 2x faster, 60% less memory, first-class Qwen3 support |
+| **Inference params** | `temp=0.6, top_p=0.95, presence_penalty=1.5` | Official Qwen3 thinking-mode settings — prevents infinite reasoning loops |
+| **Thinking control** | Never mention thinking in prompts for Qwen3.5 | Qwen3.5 doesn't support `/nothink` — meta-instructions cause spiraling loops |
 
 ---
 

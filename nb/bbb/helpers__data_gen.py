@@ -32,8 +32,7 @@ Today's date is {datetime.now().strftime("%Y-%m-%d")}.
 
 ## Instructions
 - Use the available tools to gather the data you need. Be efficient — call only what's necessary.
-- Think about what data points matter most for the given focus area before calling tools.
-- Thinking instructions: only LOW / CONCISE think is enabled or choose /nothink.
+- Think briefly about what data points matter most, then call tools.
 - After gathering data, produce a concise equity research snapshot.
 
 ## Output Format

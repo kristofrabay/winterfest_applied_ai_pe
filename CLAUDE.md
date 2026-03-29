@@ -27,10 +27,17 @@ Teach **Qwen3-4B** to be the research agent itself via tool-calling fine-tuning 
 - Notebooks import from these shared modules
 
 ### Key Technical Decisions
-- **API:** OpenAI Responses API (not Chat Completions) — native reasoning support, `function_call` items, reasoning summaries
+- **API:** OpenAI Responses API (not Chat Completions) for teacher; Chat Completions for local inference (mlx-lm, Ollama, llama-server)
 - **Tool schemas:** Auto-generated from function signatures via `_build_tool_schema()` — change the function, schema updates automatically
 - **SFT data:** Tool outputs must be truncated to ~500-800 tokens before training (standard practice — all major datasets do this). Raw yfinance responses are 2000-3000 tokens each, which wastes compute on masked tokens.
 - **max_seq_length:** 8192 for SFT (compress data to fit, don't expand window for zero-loss masked tokens)
+
+### Qwen3.5 Inference Parameters (Critical)
+Thinking models require specific sampling parameters to avoid infinite reasoning loops:
+- **`temperature=0.6, top_p=0.95, presence_penalty=1.5`** — official Qwen3 recommendations for thinking mode
+- **Never use greedy decoding** (`temperature=0`) with thinking models — causes infinite repetition
+- **Never mention thinking/nothink in prompts for Qwen3.5** — the `/think` and `/nothink` soft switches are Qwen3-only. Qwen3.5 does not support them. Including meta-instructions about thinking in the system prompt causes the model to spiral into reasoning loops about whether it should be reasoning.
+- **`--prompt-cache-size 4`** when running mlx_lm.server on 16GB Apple Silicon — default of 10 causes OOM with concurrent requests
 
 Full plan: `docs/tutorial_content/claude_plan.md`
 
