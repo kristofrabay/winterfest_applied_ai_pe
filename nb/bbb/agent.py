@@ -169,6 +169,7 @@ async def run_tool_calling_agent_chat(
     ]
 
     total_usage = {"input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0}
+    reasoning_summaries = []
 
     for i in range(max_iterations):
         response = await client.chat.completions.create(
@@ -185,6 +186,14 @@ async def run_tool_calling_agent_chat(
             total_usage["output_tokens"] += response.usage.completion_tokens or 0
 
         msg = response.choices[0].message
+
+        # Capture reasoning (mlx_lm.server puts thinking in a separate "reasoning" field)
+        reasoning = getattr(msg, "reasoning", None) or (msg.model_extra or {}).get("reasoning")
+        if reasoning:
+            reasoning_summaries.append(reasoning)
+            if verbose:
+                preview = reasoning[:120].replace("\n", " ")
+                print(f"  [{i+1}] Reasoning: {preview}...")
 
         # No tool calls — final response
         if not msg.tool_calls:
@@ -255,6 +264,6 @@ async def run_tool_calling_agent_chat(
         "input": messages,
         "output": final_output,
         "output_text": output_text,
-        "reasoning_summaries": [],
+        "reasoning_summaries": reasoning_summaries,
         "usage": total_usage,
     }

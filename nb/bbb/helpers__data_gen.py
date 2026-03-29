@@ -51,6 +51,7 @@ Produce a brief **Equity Research Snapshot** (~half page). Structure:
 - Be concise — this is a flash note, not a full report.
 - Include specific numbers: prices, percentages, ratios. No vague statements.
 - If a tool returns an error, note it and move on.
+- Keep your internal reasoning brief — a few sentences of planning, not lengthy analysis. This means think / thinking / reasoning effort should be low and concise!
 """
 
 
