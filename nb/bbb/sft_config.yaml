@@ -1,0 +1,19 @@
+model: mlx-community/Qwen3.5-4B-MLX-4bit
+train: true
+data: /Users/kristof.rabay/Documents/code/winterfest_applied_ai_pe/data/bbb/mlx_sft
+iters: 200
+batch_size: 1
+grad_accumulation_steps: 8
+max_seq_length: 8192
+mask_prompt: true
+grad_checkpoint: true
+learning_rate: 1.0e-05
+lora_parameters:
+  rank: 32
+  scale: 2.0
+  dropout: 0.0
+num_layers: -1
+adapter_path: /Users/kristof.rabay/Documents/code/winterfest_applied_ai_pe/models/mlx_sft_adapters
+save_every: 50
+steps_per_report: 10
+steps_per_eval: 50
