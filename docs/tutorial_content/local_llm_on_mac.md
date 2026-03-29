@@ -433,8 +433,10 @@ mlx_lm.lora \
 
 **Serve the fused model:**
 ```bash
-mlx_lm.server --model ./fused_model
+mlx_lm.server --model ./fused_model --prompt-cache-warmup
 # → OpenAI-compatible API at localhost:8080
+# --prompt-cache-warmup is critical for thinking models (Qwen3.5) —
+# without it, first request produces extremely long reasoning due to cold KV cache
 ```
 
 #### Export to GGUF (for Ollama / llama-server)

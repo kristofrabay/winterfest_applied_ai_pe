@@ -38,6 +38,7 @@ Thinking models require specific sampling parameters to avoid infinite reasoning
 - **Never use greedy decoding** (`temperature=0`) with thinking models — causes infinite repetition
 - **Never mention thinking/nothink in prompts for Qwen3.5** — the `/think` and `/nothink` soft switches are Qwen3-only. Qwen3.5 does not support them. Including meta-instructions about thinking in the system prompt causes the model to spiral into reasoning loops about whether it should be reasoning.
 - **`--prompt-cache-size 4`** when running mlx_lm.server on 16GB Apple Silicon — default of 10 causes OOM with concurrent requests
+- **`--prompt-cache-warmup`** is required for thinking models — without it, first request after server start produces extremely long reasoning due to 0% KV cache reuse ([mlx-lm#1042](https://github.com/ml-explore/mlx-lm/pull/1042))
 
 Full plan: `docs/tutorial_content/claude_plan.md`
 
