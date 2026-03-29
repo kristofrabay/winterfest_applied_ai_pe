@@ -4,15 +4,15 @@ data: /Users/kristof.rabay/Documents/code/winterfest_applied_ai_pe/data/bbb/mlx_
 iters: 200
 batch_size: 1
 grad_accumulation_steps: 8
-max_seq_length: 8192
+max_seq_length: 16384
 mask_prompt: true
 grad_checkpoint: true
 learning_rate: 1.0e-05
 lora_parameters:
-  rank: 32
+  rank: 16
   scale: 2.0
   dropout: 0.0
-num_layers: -1
+num_layers: 8
 adapter_path: /Users/kristof.rabay/Documents/code/winterfest_applied_ai_pe/models/mlx_sft_adapters
 save_every: 50
 steps_per_report: 10

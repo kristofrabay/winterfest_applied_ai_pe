@@ -154,21 +154,137 @@ These failures are **the point** — they demonstrate why fine-tuning matters.
 Raw trajectories (Responses API format)
     │
     ├── Convert: developer → system, function_call → tool_calls, etc.
+    ├── Inject reasoning as <think> tags in assistant content
     ├── Truncate: tool results to ~500-800 tokens
     ├── Filter: remove stuck loops, malformed calls, short memos
     └── Output: Hermes chat format with tools field
 ```
 
+### What Gets Masked (and Why)
+
+SFT with `mask_prompt` / `train_on_responses_only` means we only compute loss on **assistant turns**. Everything else is context — the model sees it but doesn't learn to predict it.
+
+```text
+<|im_start|>system                    ← MASKED (labels=-100)
+You are a sell-side analyst...
+<|im_end|>
+<|im_start|>user                      ← MASKED
+Research AAPL focusing on...
+<|im_end|>
+<|im_start|>assistant                 ← TRAINED ✓
+<think>I should check financials</think>
+<tool_call>{"name": "get_financials", ...}</tool_call>
+<|im_end|>
+<|im_start|>tool                      ← MASKED
+{"ticker": "AAPL", "revenue": 416B...}
+<|im_end|>
+<|im_start|>assistant                 ← TRAINED ✓
+<think>Now compile the snapshot</think>
+**AAPL** | Technology | $3.68T...
+<|im_end|>
+```
+
+**The model learns the decision pattern, not the data.** It learns "after seeing financials data, call price_history next" — not "Apple's revenue is $416B." This is why tool output truncation works: shorter masked results = more room for the assistant turns that actually get gradient.
+
+### SFT Hyperparameter Guide
+
+#### Understanding `max_seq_length`
+
+`max_seq_length` is the **total token window** — the entire sequence from `<|im_start|>system` to the last `<|im_end|>`. It includes everything: system prompt, user message, assistant turns, tool calls, tool results, and the final response. It is NOT just the output or just the prompt — it's the whole thing.
+
+If a training sample exceeds `max_seq_length`, it gets **truncated from the end**. For tool-calling trajectories, the end is typically the final assistant response — the most important part. This is why tool output truncation matters: you need the assistant content to fit within the window.
+
+```text
+Example token budget (max_seq_length = 8192):
+  System prompt + tool schemas:  ~800 tokens
+  User message:                  ~20 tokens
+  Assistant <think> + tool_call: ~200 tokens
+  Tool results (4-5 calls):     ~3000 tokens (truncated from ~12K)
+  Assistant <think> + tool_call: ~200 tokens
+  More tool results:            ~1500 tokens
+  Final assistant response:      ~800 tokens
+  ─────────────────────────────────────
+  Total:                        ~6520 tokens ✓ fits in 8192
+```
+
+#### Effective Batch Size
+
+```text
+effective_batch_size = batch_size × grad_accumulation_steps
+
+Example: batch_size=1, grad_accumulation=8 → effective batch = 8
+```
+
+The optimizer updates weights once per effective batch. Gradient accumulation simulates a larger batch by accumulating gradients across multiple forward passes before stepping. This is how you train with large effective batches on limited memory.
+
+#### Steps vs Epochs
+
+```text
+steps_per_epoch = num_training_samples / effective_batch_size
+total_steps = steps_per_epoch × num_epochs
+
+Example: 200 samples, effective batch=8 → 25 steps/epoch
+         If iters=200 → 200/25 = 8 epochs over the data
+```
+
+MLX uses `iters` (steps), not epochs. To convert: `iters = desired_epochs × (num_samples / effective_batch_size)`.
+
+#### LoRA Parameters
+
+| Parameter | Unsloth | MLX | What it controls |
+|-----------|---------|-----|-----------------|
+| Rank (`r`) | `r=32` | `rank: 32` | Dimensionality of LoRA matrices. Higher = more capacity, more memory. 16-64 is typical. |
+| Alpha | `lora_alpha=64` | `scale: 2.0` | Scaling factor. **MLX uses `scale = alpha / rank`**, not alpha directly. So `alpha=64, r=32` → `scale=2.0`. |
+| Dropout | `lora_dropout=0` | `dropout: 0.0` | Regularization. Usually 0 for SFT, sometimes 0.05-0.1 for small datasets. |
+| Target modules | All attention + MLP | `num_layers: -1` | Which layers get LoRA. `-1` = all. Reducing this is the primary memory knob. |
+
+#### Learning Rate
+
+| Framework | Default | Notes |
+|-----------|---------|-------|
+| Unsloth/TRL | `2e-4` | Uses 8-bit Adam (`adamw_8bit`) — higher LR compensates for quantization noise |
+| MLX | `1e-5` | Uses full-precision Adam — lower LR because updates are more precise |
+
+#### Memory Constraints (16GB Apple Silicon)
+
+| Setting | Impact |
+|---------|--------|
+| `batch_size: 1` | Minimum memory footprint per step |
+| `grad_checkpoint: true` | Trades ~30% speed for ~40% less memory (recomputes activations during backward) |
+| `max_seq_length: 8192` | Fits with grad_checkpoint. 4096 is safer but truncates tool-calling trajectories (NaN loss if final assistant response is cut off) |
+| `num_layers: 16` | Fallback: train only half the layers if 8192 OOMs |
+
 ### Training Configuration
 
+**MLX (Apple Silicon):**
+```yaml
+model: mlx-community/Qwen3.5-4B-MLX-4bit
+max_seq_length: 8192
+batch_size: 1
+grad_accumulation_steps: 8   # effective batch = 8
+mask_prompt: true
+grad_checkpoint: true
+learning_rate: 1e-5
+lora_parameters:
+  rank: 32
+  scale: 2.0                 # = alpha(64) / rank(32)
+```
+
+**Unsloth (Databricks GPU):**
 ```python
-# Unsloth + LoRA
 model = "unsloth/Qwen3-4B"
 max_seq_length = 8192
 r = 32, lora_alpha = 64
+per_device_train_batch_size = 4
+gradient_accumulation_steps = 8  # effective batch = 32
 learning_rate = 2e-4
-# Train on assistant turns only (tool results masked)
 ```
+
+### Gotchas We Hit
+
+1. **Qwen3.5 Jinja template expects `arguments` as dict, not string.** OpenAI API returns tool call arguments as JSON strings. Qwen3.5's template does `arguments | items` which crashes on strings. Fix: `json.loads()` in data prep.
+2. **`max_seq_length=4096` → NaN loss.** Tool-calling trajectories are 7K-17K tokens. At 4096, the final assistant response (the only part with gradient) gets truncated entirely → zero training tokens → NaN.
+3. **MLX `mask_prompt` is Unsloth's `train_on_responses_only`.** Same concept, different name, different implementation. Both mask everything except assistant turns.
 
 ### What SFT Teaches
 
@@ -178,6 +294,7 @@ learning_rate = 2e-4
 | JSON arguments | Often malformed | Valid, correct params |
 | Knows when to stop | Loops forever | Produces final memo |
 | Tool call efficiency | N/A | ~5-7 calls (mimics teacher) |
+| Reasoning | None or loops | Brief `<think>` before each action |
 
 ---
 
