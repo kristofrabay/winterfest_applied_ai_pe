@@ -1,10 +1,10 @@
-model: mlx-community/Qwen3.5-4B-MLX-4bit
+model: mlx-community/Qwen3.5-2B-4bit
 train: true
 data: /Users/kristof.rabay/Documents/code/winterfest_applied_ai_pe/data/bbb/mlx_sft
-iters: 200
+iters: 20
 batch_size: 1
-grad_accumulation_steps: 8
-max_seq_length: 16384
+grad_accumulation_steps: 4
+max_seq_length: 8192
 mask_prompt: true
 grad_checkpoint: true
 learning_rate: 1.0e-05
@@ -12,8 +12,16 @@ lora_parameters:
   rank: 16
   scale: 2.0
   dropout: 0.0
-num_layers: 8
+  keys:
+  - self_attn.q_proj
+  - self_attn.k_proj
+  - self_attn.v_proj
+  - self_attn.o_proj
+  - mlp.gate_proj
+  - mlp.up_proj
+  - mlp.down_proj
+num_layers: 16
 adapter_path: /Users/kristof.rabay/Documents/code/winterfest_applied_ai_pe/models/mlx_sft_adapters
-save_every: 50
-steps_per_report: 10
-steps_per_eval: 50
+save_every: 25
+steps_per_report: 5
+steps_per_eval: 25
