@@ -245,29 +245,58 @@ MLX uses `iters` (steps), not epochs. To convert: `iters = desired_epochs × (nu
 | Unsloth/TRL | `2e-4` | Uses 8-bit Adam (`adamw_8bit`) — higher LR compensates for quantization noise |
 | MLX | `1e-5` | Uses full-precision Adam — lower LR because updates are more precise |
 
-#### Memory Constraints (16GB Apple Silicon)
+#### Training on 16GB Apple Silicon (The Hard Way)
 
-| Setting | Impact |
-|---------|--------|
-| `batch_size: 1` | Minimum memory footprint per step |
-| `grad_checkpoint: true` | Trades ~30% speed for ~40% less memory (recomputes activations during backward) |
-| `max_seq_length: 8192` | Fits with grad_checkpoint. 4096 is safer but truncates tool-calling trajectories (NaN loss if final assistant response is cut off) |
-| `num_layers: 16` | Fallback: train only half the layers if 8192 OOMs |
+Apple Silicon uses **unified memory** — GPU and CPU share the same 16GB pool. Unlike CUDA which throws a clean `OutOfMemoryError`, exceeding memory on Metal causes macOS to swap to SSD. Since GPU memory access patterns are terrible for disk I/O, this freezes the entire machine — no crash, no error, just an unresponsive laptop for 30+ minutes.
+
+**The memory hierarchy** (most to least impact on memory):
+
+| Knob | Aggressive | Conservative | Impact |
+|------|-----------|-------------|--------|
+| `max_seq_length` | 16384 | **8192** | Biggest single factor. Sequence length × layers × hidden dim. 16K at 4B params will freeze your Mac. |
+| `num_layers` | -1 (all 36) | **8-16** | How many transformer layers get LoRA adapters. Top layers matter most for behavioral SFT. |
+| `rank` | 32 | **8-16** | LoRA matrix dimensionality. Lower rank = less memory, less capacity. 8 is the floor for tool-calling. |
+| `grad_checkpoint` | false | **true** | Recomputes activations during backward pass. ~30% slower, ~40% less memory. Non-negotiable on 16GB. |
+| `batch_size` | 2+ | **1** | Already at minimum. |
+
+**What actually fits on 16GB M1:**
+
+| Model | max_seq_length | num_layers | rank | Fits? |
+|-------|---------------|------------|------|-------|
+| Qwen3.5-4B (4-bit) | 16384 | -1 (all) | 32 | OOM on backward pass |
+| Qwen3.5-4B (4-bit) | 16384 | 16 | 16 | OOM on backward pass |
+| Qwen3.5-4B (4-bit) | 8192 | 16 | 16 | Fits with tight tool truncation |
+| Qwen3.5-3B (4-bit) | 8192 | -1 | 32 | Comfortable |
+| Qwen3.5-1.5B (4-bit) | 16384 | -1 | 32 | Comfortable |
+
+**The practical answer for 16GB Mac:** Use a smaller model (1.5B or 3B) for local training, or truncate tool outputs aggressively to fit 8K. Save the 4B model for GPU training on Databricks. For a conference demo, training a 1.5B model locally in 5 minutes is more impressive than fighting OOM on 4B for an hour.
+
+**Close your browser.** Safari/Chrome easily consume 2-4GB of unified memory. Close them before training — that's the difference between OOM and success.
+
+#### Smaller Qwen3.5 Models for Local Training
+
+| Model | MLX 4-bit size | Tool calling | Sweet spot |
+|-------|---------------|-------------|------------|
+| Qwen3.5-0.6B | ~400MB | Basic | Quick experiments, proof of concept |
+| Qwen3.5-1.5B | ~1GB | Decent | Best for 16GB Mac — 16K context, full LoRA, fast training |
+| Qwen3.5-3B | ~1.8GB | Good | Good quality, 8K context comfortable |
+| Qwen3.5-4B | ~2.6GB | Strong | Needs GPU or very aggressive memory tuning |
 
 ### Training Configuration
 
-**MLX (Apple Silicon):**
+**MLX (Apple Silicon — 16GB safe):**
 ```yaml
-model: mlx-community/Qwen3.5-4B-MLX-4bit
-max_seq_length: 8192
+model: mlx-community/Qwen3.5-4B-MLX-4bit  # or 1.5B/3B for comfort
+max_seq_length: 8192      # 16K only if using 1.5B/3B model
 batch_size: 1
 grad_accumulation_steps: 8   # effective batch = 8
 mask_prompt: true
 grad_checkpoint: true
 learning_rate: 1e-5
+num_layers: 16             # train top 16 of 36 layers (memory saver)
 lora_parameters:
-  rank: 32
-  scale: 2.0                 # = alpha(64) / rank(32)
+  rank: 16                 # 16 for 4B, 32 for smaller models
+  scale: 2.0               # = alpha(32) / rank(16)
 ```
 
 **Unsloth (Databricks GPU):**
@@ -284,7 +313,9 @@ learning_rate = 2e-4
 
 1. **Qwen3.5 Jinja template expects `arguments` as dict, not string.** OpenAI API returns tool call arguments as JSON strings. Qwen3.5's template does `arguments | items` which crashes on strings. Fix: `json.loads()` in data prep.
 2. **`max_seq_length=4096` → NaN loss.** Tool-calling trajectories are 7K-17K tokens. At 4096, the final assistant response (the only part with gradient) gets truncated entirely → zero training tokens → NaN.
-3. **MLX `mask_prompt` is Unsloth's `train_on_responses_only`.** Same concept, different name, different implementation. Both mask everything except assistant turns.
+3. **`max_seq_length=16384` → frozen Mac.** Metal/MLX doesn't OOM — it swaps to SSD and freezes the machine. No error, no crash, just 30 minutes of an unresponsive laptop. Always test memory before long runs.
+4. **MLX `mask_prompt` is Unsloth's `train_on_responses_only`.** Same concept, different name, different implementation. Both mask everything except assistant turns.
+5. **Validation passes but training OOMs.** Validation is forward-only (no gradients stored). The backward pass during training needs ~2x more memory. If val loss prints but training crashes, you're right at the memory edge.
 
 ### What SFT Teaches
 

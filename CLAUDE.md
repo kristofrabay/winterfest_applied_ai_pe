@@ -31,6 +31,8 @@ Teach **Qwen3-4B** to be the research agent itself via tool-calling fine-tuning 
 - **Tool schemas:** Auto-generated from function signatures via `_build_tool_schema()` — change the function, schema updates automatically
 - **SFT data:** Tool outputs must be truncated to ~500-800 tokens before training (standard practice — all major datasets do this). Raw yfinance responses are 2000-3000 tokens each, which wastes compute on masked tokens.
 - **max_seq_length:** 8192 for SFT (compress data to fit, don't expand window for zero-loss masked tokens)
+- **16GB Mac training limits:** Qwen3.5-4B at 8K context with `num_layers=16, rank=16, grad_checkpoint=true` is the ceiling. For comfort, use 1.5B or 3B models. 16K context on 4B will freeze the Mac (Metal swaps to SSD instead of OOM).
+- **Qwen3.5 Jinja template:** expects tool call `arguments` as dict, not JSON string. The `to_mlx_format()` function in the Phase 4 notebook handles this conversion.
 
 ### Qwen3.5 Inference Parameters (Critical)
 Thinking models require specific sampling parameters to avoid infinite reasoning loops:
