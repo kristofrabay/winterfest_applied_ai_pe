@@ -12,11 +12,11 @@ The system is a **two-stage pipeline** for automated equity investment research:
 
 ### Current Conference Goal (Big Birthday Bash — BBB)
 
-Teach **Qwen3-4B** to be the research agent itself via tool-calling fine-tuning + RL:
+Teach **Qwen3.5** (2B locally on Mac, 4B on GPU) to be the research agent itself via tool-calling fine-tuning + RL:
 1. **Teacher Agent** (`nb/bbb/_phase_1_teacher.ipynb`) — GPT-5.4 via Responses API with reasoning, generates training trajectories. DONE.
 2. **Data Generation** (`nb/bbb/_phase_2_data_gen.ipynb`) — Run teacher on ~200 companies, save full tool-calling trajectories
-3. **Baseline** (`nb/bbb/_phase_3_baseline.ipynb`) — Run raw Qwen3-4B with tools to establish "before" metrics
-4. **SFT** (`nb/bbb/_phase_4_sft.ipynb`) — Fine-tune Qwen3-4B on trajectories via Unsloth
+3. **Baseline** (`nb/bbb/_phase_3_baseline.ipynb`) — Run raw Qwen3.5 with tools to establish "before" metrics
+4. **SFT** (`nb/bbb/_phase_4_sft.ipynb`) — Fine-tune Qwen3.5 on trajectories via MLX (Mac) or Unsloth (GPU)
 5. **RL** (`nb/bbb/_phase_5_rl.ipynb`) — GRPO via ART (OpenPipe) to refine tool-calling behavior
 
 ### BBB Code Structure (`nb/bbb/`)
@@ -31,7 +31,7 @@ Teach **Qwen3-4B** to be the research agent itself via tool-calling fine-tuning 
 - **Tool schemas:** Auto-generated from function signatures via `_build_tool_schema()` — change the function, schema updates automatically
 - **SFT data:** Tool outputs must be truncated to ~500-800 tokens before training (standard practice — all major datasets do this). Raw yfinance responses are 2000-3000 tokens each, which wastes compute on masked tokens.
 - **max_seq_length:** 8192 for SFT (compress data to fit, don't expand window for zero-loss masked tokens)
-- **16GB Mac training limits:** Qwen3.5-4B at 8K context with `num_layers=16, rank=16, grad_checkpoint=true` is the ceiling. For comfort, use 1.5B or 3B models. 16K context on 4B will freeze the Mac (Metal swaps to SSD instead of OOM).
+- **16GB Mac training limits:** Qwen3.5-4B OOMs during backward pass at any useful sequence length. Use Qwen3.5-2B for local training — fits 16K context with full LoRA (`rank=32, num_layers=-1`). 4B freezes the Mac (Metal swaps to SSD instead of OOM).
 - **Qwen3.5 Jinja template:** expects tool call `arguments` as dict, not JSON string. The `to_mlx_format()` function in the Phase 4 notebook handles this conversion.
 
 ### Qwen3.5 Inference Parameters (Critical)

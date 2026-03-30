@@ -121,11 +121,11 @@ Requires `.env` with `OPENAI_API_KEY` and `VECTOR_STORE_ID`.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Teacher API** | OpenAI Responses API | Native reasoning support, flat tool schemas |
-| **Base model** | Qwen3-4B | Best tool-calling benchmarks at size, native `<think>` support |
+| **Base model** | Qwen3.5-2B (Mac) / Qwen3-4B (GPU) | 2B fits 16K context on 16GB Mac; 4B for full-scale GPU training |
 | **Tool schemas** | Auto-generated from function signatures | Single source of truth, change function → schema updates |
 | **SFT data** | Tool outputs truncated to ~500-800 tokens | Standard practice (Hermes, ToolBench, APIGen all do this) |
 | **RL framework** | ART by OpenPipe | Only option for multi-turn GRPO with tool calling |
-| **Training** | Unsloth + LoRA on Databricks | 2x faster, 60% less memory, first-class Qwen3 support |
+| **Training** | MLX LoRA (Mac) / Unsloth + LoRA (GPU) | MLX for local dev, Unsloth for full-scale on Databricks |
 | **Inference params** | `temp=0.6, top_p=0.95, presence_penalty=1.5` | Official Qwen3 thinking-mode settings — prevents infinite reasoning loops |
 | **Thinking control** | Never mention thinking in prompts for Qwen3.5 | Qwen3.5 doesn't support `/nothink` — meta-instructions cause spiraling loops |
 

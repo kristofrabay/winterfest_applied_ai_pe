@@ -266,10 +266,10 @@ Apple Silicon uses **unified memory** — GPU and CPU share the same 16GB pool. 
 | Qwen3.5-4B (4-bit) | 16384 | -1 (all) | 32 | OOM on backward pass |
 | Qwen3.5-4B (4-bit) | 16384 | 16 | 16 | OOM on backward pass |
 | Qwen3.5-4B (4-bit) | 8192 | 16 | 16 | Fits with tight tool truncation |
-| Qwen3.5-3B (4-bit) | 8192 | -1 | 32 | Comfortable |
-| Qwen3.5-1.5B (4-bit) | 16384 | -1 | 32 | Comfortable |
+| Qwen3.5-2B (4-bit) | 16384 | -1 | 32 | **Comfortable — our pick** |
+| Qwen3.5-0.8B (4-bit) | 16384 | -1 | 32 | Very comfortable, limited capacity |
 
-**The practical answer for 16GB Mac:** Use a smaller model (1.5B or 3B) for local training, or truncate tool outputs aggressively to fit 8K. Save the 4B model for GPU training on Databricks. For a conference demo, training a 1.5B model locally in 5 minutes is more impressive than fighting OOM on 4B for an hour.
+**The practical answer for 16GB Mac:** Use **Qwen3.5-2B** for local training — 16K context with full LoRA, no OOM risk, fast iterations. For a conference demo, training a 2B model on a MacBook Pro is a clean narrative. Fighting OOM on 4B is not a slide.
 
 **Close your browser.** Safari/Chrome easily consume 2-4GB of unified memory. Close them before training — that's the difference between OOM and success.
 
@@ -277,26 +277,26 @@ Apple Silicon uses **unified memory** — GPU and CPU share the same 16GB pool. 
 
 | Model | MLX 4-bit size | Tool calling | Sweet spot |
 |-------|---------------|-------------|------------|
-| Qwen3.5-0.6B | ~400MB | Basic | Quick experiments, proof of concept |
-| Qwen3.5-1.5B | ~1GB | Decent | Best for 16GB Mac — 16K context, full LoRA, fast training |
-| Qwen3.5-3B | ~1.8GB | Good | Good quality, 8K context comfortable |
-| Qwen3.5-4B | ~2.6GB | Strong | Needs GPU or very aggressive memory tuning |
+| Qwen3.5-0.8B | ~500MB | Basic | Quick experiments, proof of concept |
+| **Qwen3.5-2B** | **~1.2GB** | **Good** | **Best for 16GB Mac — 16K context, full LoRA, fast training** |
+| Qwen3.5-4B | ~2.6GB | Strong | OOMs during training on 16GB Mac |
+| Qwen3.5-9B | ~5GB | Excellent | Needs 32GB+ Mac or GPU |
 
 ### Training Configuration
 
 **MLX (Apple Silicon — 16GB safe):**
 ```yaml
-model: mlx-community/Qwen3.5-4B-MLX-4bit  # or 1.5B/3B for comfort
-max_seq_length: 8192      # 16K only if using 1.5B/3B model
+model: mlx-community/Qwen3.5-2B-4bit
+max_seq_length: 16384
 batch_size: 1
 grad_accumulation_steps: 8   # effective batch = 8
 mask_prompt: true
 grad_checkpoint: true
 learning_rate: 1e-5
-num_layers: 16             # train top 16 of 36 layers (memory saver)
+num_layers: -1             # all layers — 2B fits comfortably
 lora_parameters:
-  rank: 16                 # 16 for 4B, 32 for smaller models
-  scale: 2.0               # = alpha(32) / rank(16)
+  rank: 32
+  scale: 2.0               # = alpha(64) / rank(32)
 ```
 
 **Unsloth (Databricks GPU):**
