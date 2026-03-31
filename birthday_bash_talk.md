@@ -259,63 +259,84 @@ Apple Silicon uses **unified memory** — GPU and CPU share the same 16GB pool. 
 | `grad_checkpoint` | false | **true** | Recomputes activations during backward pass. ~30% slower, ~40% less memory. Non-negotiable on 16GB. |
 | `batch_size` | 2+ | **1** | Already at minimum. |
 
-**What actually fits on 16GB M1:**
+**What actually fits on 16GB M1 (MLX LoRA):**
 
 | Model | max_seq_length | num_layers | rank | Fits? |
 |-------|---------------|------------|------|-------|
-| Qwen3.5-4B (4-bit) | 16384 | -1 (all) | 32 | OOM on backward pass |
-| Qwen3.5-4B (4-bit) | 16384 | 16 | 16 | OOM on backward pass |
-| Qwen3.5-4B (4-bit) | 8192 | 16 | 16 | Fits with tight tool truncation |
-| Qwen3.5-2B (4-bit) | 16384 | -1 | 32 | **Comfortable — our pick** |
-| Qwen3.5-0.8B (4-bit) | 16384 | -1 | 32 | Very comfortable, limited capacity |
+| Qwen3.5-4B (4-bit) | Any | Any | Any | OOM — backward pass exceeds memory |
+| Qwen3.5-2B (4-bit) | Any | Any | Any | OOM — backward pass ~48 GB peak |
+| Qwen3.5-0.8B (4-bit) | Any | Any | Any | OOM — backward pass ~48 GB peak |
 
-**The practical answer for 16GB Mac:** Use **Qwen3.5-2B** for local training — 16K context with full LoRA, no OOM risk, fast iterations. For a conference demo, training a 2B model on a MacBook Pro is a clean narrative. Fighting OOM on 4B is not a slide.
+**The practical answer:** MLX LoRA training does not fit on 16GB Apple Silicon for Qwen3.5 at any size. The backward pass overhead is constant at ~48 GB regardless of model or config. Use **Unsloth on a free Colab T4** for training, then serve the fine-tuned model locally on Mac with `mlx_lm.server` (inference works perfectly at ~4 GB).
 
-**Close your browser.** Safari/Chrome easily consume 2-4GB of unified memory. Close them before training — that's the difference between OOM and success.
+**MLX is excellent for inference.** Serving Qwen3.5-2B locally, running baselines, evaluating fine-tuned models — all fast and stable on 16GB Mac. Training is the bottleneck, not inference.
 
-#### Smaller Qwen3.5 Models for Local Training
+#### Qwen3.5 Model Sizes
 
-| Model | MLX 4-bit size | Tool calling | Sweet spot |
-|-------|---------------|-------------|------------|
-| Qwen3.5-0.8B | ~500MB | Basic | Quick experiments, proof of concept |
-| **Qwen3.5-2B** | **~1.2GB** | **Good** | **Best for 16GB Mac — 16K context, full LoRA, fast training** |
-| Qwen3.5-4B | ~2.6GB | Strong | OOMs during training on 16GB Mac |
-| Qwen3.5-9B | ~5GB | Excellent | Needs 32GB+ Mac or GPU |
+| Model | 4-bit size | Tool calling | Local training (16GB Mac) | Colab T4 training |
+|-------|-----------|-------------|--------------------------|-------------------|
+| Qwen3.5-0.8B | ~500MB | Basic | MLX backward pass OOM | Fast (~2 min) |
+| **Qwen3.5-2B** | **~1.2GB** | **Good** | **MLX backward pass OOM** | **~5 min — our pick** |
+| Qwen3.5-4B | ~2.6GB | Strong | MLX backward pass OOM | ~10 min |
+| Qwen3.5-9B | ~5GB | Excellent | Inference only | Tight on T4 |
+
+**Note:** Qwen3.5-0.8B uses a hybrid architecture (Gated DeltaNet + Gated Attention) unlike the standard transformer in 2B+. The 0.8B is also more prone to thinking loops.
 
 ### Training Configuration
 
-**MLX (Apple Silicon — 16GB safe):**
-```yaml
-model: mlx-community/Qwen3.5-2B-4bit
-max_seq_length: 16384
-batch_size: 1
-grad_accumulation_steps: 8   # effective batch = 8
-mask_prompt: true
-grad_checkpoint: true
-learning_rate: 1e-5
-num_layers: -1             # all layers — 2B fits comfortably
-lora_parameters:
-  rank: 32
-  scale: 2.0               # = alpha(64) / rank(32)
-```
-
-**Unsloth (Databricks GPU):**
+**Unsloth (Google Colab — free T4 GPU):**
 ```python
-model = "unsloth/Qwen3-4B"
+model = "unsloth/Qwen3.5-2B"
 max_seq_length = 8192
 r = 32, lora_alpha = 64
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj",
+                  "gate_proj", "up_proj", "down_proj"]
 per_device_train_batch_size = 4
 gradient_accumulation_steps = 8  # effective batch = 32
 learning_rate = 2e-4
+```
+
+**Then serve locally on Mac:**
+```bash
+# Convert Unsloth output to MLX format
+uv run mlx_lm.convert --hf-path <model_path> --mlx-path models/mlx_sft_fused -q
+
+# Serve with mlx_lm.server (inference is fast and stable on 16GB Mac)
+uv run mlx_lm.server --model models/mlx_sft_fused --port 8080
 ```
 
 ### Gotchas We Hit
 
 1. **Qwen3.5 Jinja template expects `arguments` as dict, not string.** OpenAI API returns tool call arguments as JSON strings. Qwen3.5's template does `arguments | items` which crashes on strings. Fix: `json.loads()` in data prep.
 2. **`max_seq_length=4096` → NaN loss.** Tool-calling trajectories are 7K-17K tokens. At 4096, the final assistant response (the only part with gradient) gets truncated entirely → zero training tokens → NaN.
-3. **`max_seq_length=16384` → frozen Mac.** Metal/MLX doesn't OOM — it swaps to SSD and freezes the machine. No error, no crash, just 30 minutes of an unresponsive laptop. Always test memory before long runs.
-4. **MLX `mask_prompt` is Unsloth's `train_on_responses_only`.** Same concept, different name, different implementation. Both mask everything except assistant turns.
-5. **Validation passes but training OOMs.** Validation is forward-only (no gradients stored). The backward pass during training needs ~2x more memory. If val loss prints but training crashes, you're right at the memory edge.
+3. **MLX `mask_prompt` is Unsloth's `train_on_responses_only`.** Same concept, different name, different implementation. Both mask everything except assistant turns.
+4. **Validation passes but training OOMs.** Validation is forward-only (no gradients stored). The backward pass during training needs ~2x more memory. If val loss prints but training crashes, you're right at the memory edge.
+5. **Qwen3 default LoRA keys are too narrow.** MLX auto-discovers only `q_proj` and `v_proj`. Specify all 7 projection layers (`q/k/v/o_proj` + `gate/up/down_proj`) in config for meaningful trainable parameter coverage. ([mlx issue #2616](https://github.com/ml-explore/mlx/issues/2616))
+
+### Why MLX Training Failed on 16GB Mac (and What We Learned)
+
+We spent significant time trying to train locally with `mlx_lm.lora`. MLX is excellent for **inference** — serving models, running baselines, evaluating fine-tuned weights. But LoRA **training** on 16GB Apple Silicon hit a wall we couldn't get past.
+
+**What we tried:**
+
+| Model | Config | Result |
+|-------|--------|--------|
+| Qwen3.5-4B | rank=32, all layers, 16K seq | OOM on backward pass |
+| Qwen3.5-4B | rank=16, 8 layers, 8K seq | Froze Mac for 30 minutes |
+| Qwen3.5-2B | rank=8, 4 layers, 4K seq | Metal OOM: `kIOGPUCommandBufferCallbackErrorOutOfMemory` |
+| Qwen3.5-0.8B | rank=8, 4 layers, 8K seq | Same result |
+
+**Root cause: MLX backward pass memory is ~48 GB regardless of model size or config.** We wrote a diagnostic script (`nb/bbb/debug_train.py`) that steps through training manually. The forward pass uses ~4 GB. The backward pass consistently peaks at ~48 GB. This 12x forward-to-backward ratio is far beyond the normal 2-3x.
+
+Without `mx.compile`, MLX builds the entire backward computation graph eagerly in Python — graph metadata alone consumes tens of GB. With `mx.compile`, the JIT compilation itself requires so much memory that macOS swaps to SSD, freezes WindowServer, and triggers a **kernel panic** (twice). The `mx.set_wired_limit()` in the trainer is supposed to prevent this by limiting Metal memory, but the JIT compiler uses CPU-side memory that isn't bounded by this limit.
+
+**The key insight:** MLX's `mx.set_wired_limit` controls Metal GPU allocation but not the CPU-side memory used by `mx.compile`'s JIT tracer. On a 16GB unified memory Mac, there's nowhere to hide — GPU and CPU share the same pool.
+
+**Our solution: Train on Colab (free T4), infer locally on Mac.**
+
+This is actually the practical pattern for resource-constrained environments: use cloud GPUs where compute is cheap, deploy locally where data sensitivity matters. Unsloth on a free Colab T4 (16GB VRAM) trains Qwen3.5-2B in ~5 minutes. The fine-tuned model converts to MLX format and serves locally on the Mac for inference — where MLX genuinely excels.
+
+**Takeaway for the audience:** If you're limited in compute, use a stable, proven training framework (Unsloth, TRL, Axolotl) rather than fighting bleeding-edge tools. MLX LoRA training is evolving rapidly ([issues #516](https://github.com/ml-explore/mlx-lm/issues/516), [#1406](https://github.com/ml-explore/mlx/issues/1406)) and will likely work on 16GB Macs in the future — but for a production or demo workflow today, a reliable cloud GPU is the pragmatic choice.
 
 ### What SFT Teaches
 
