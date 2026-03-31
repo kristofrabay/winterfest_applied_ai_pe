@@ -295,7 +295,68 @@ def responses_to_hermes(
 # Quality filtering
 # ---------------------------------------------------------------------------
 
-def filter_trajectory(raw_record: dict, min_memo_chars: int = 200) -> tuple[bool, str]:
+# Error keywords in tool outputs that indicate yfinance / data source failures
+_TOOL_ERROR_KEYWORDS = [
+    "no data found",
+    "delisted",
+    "http error 404",
+    "symbol may be delisted",
+    "no price data",
+    "failed to get ticker",
+    "no fundamentals data",
+    "connection error",
+    "timeout",
+    "rate limit",
+]
+
+
+def check_tool_errors(raw_record: dict) -> dict:
+    """
+    Analyze tool outputs in a raw trajectory for data source errors.
+
+    Returns dict with:
+        - total_tool_outputs: int
+        - errored_outputs: int
+        - error_rate: float
+        - errors: list of (tool_name, error_snippet) tuples
+    """
+    all_items = list(raw_record["input"]) + list(raw_record["output"])
+
+    total = 0
+    errored = 0
+    errors = []
+
+    # Map call_id → tool name for readable logging
+    call_id_to_name = {}
+    for it in all_items:
+        if isinstance(it, dict) and it.get("type") == "function_call":
+            call_id_to_name[it.get("call_id", "")] = it.get("name", "?")
+
+    for it in all_items:
+        if isinstance(it, dict) and it.get("type") == "function_call_output":
+            total += 1
+            output_lower = (it.get("output", "") or "").lower()
+            for kw in _TOOL_ERROR_KEYWORDS:
+                if kw in output_lower:
+                    errored += 1
+                    tool_name = call_id_to_name.get(it.get("call_id", ""), "?")
+                    snippet = it["output"][:120].replace("\n", " ")
+                    errors.append((tool_name, kw, snippet))
+                    break
+
+    return {
+        "total_tool_outputs": total,
+        "errored_outputs": errored,
+        "error_rate": errored / total if total > 0 else 0.0,
+        "errors": errors,
+    }
+
+
+def filter_trajectory(
+    raw_record: dict,
+    min_memo_chars: int = 200,
+    max_tool_error_rate: float = 0.5,
+) -> tuple[bool, str]:
     """
     Check if a trajectory meets quality standards for SFT training.
 
@@ -336,6 +397,13 @@ def filter_trajectory(raw_record: dict, min_memo_chars: int = 200) -> tuple[bool
     tool_names = {tc["name"] for tc in tool_calls}
     if len(tool_names) < 2:
         return False, f"too_few_tools ({tool_names})"
+
+    # 5. Tool error rate — too many failed tool calls = bad training signal
+    tool_health = check_tool_errors(raw_record)
+    if tool_health["error_rate"] > max_tool_error_rate:
+        n_err = tool_health["errored_outputs"]
+        n_tot = tool_health["total_tool_outputs"]
+        return False, f"tool_errors ({n_err}/{n_tot} failed: {[e[1] for e in tool_health['errors']]})"
 
     return True, "ok"
 
