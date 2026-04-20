@@ -245,19 +245,69 @@ MLX uses `iters` (steps), not epochs. To convert: `iters = desired_epochs × (nu
 | Unsloth/TRL | `2e-4` | Uses 8-bit Adam (`adamw_8bit`) — higher LR compensates for quantization noise |
 | MLX | `1e-5` | Uses full-precision Adam — lower LR because updates are more precise |
 
+#### How Training Costs Scale (The Knobs That Matter)
+
+Understanding which knobs are expensive and which are cheap saves hours of debugging OOM errors.
+
+**The scaling cheat sheet:**
+
+| Knob | Memory | Compute/step | Total training time | Intuition |
+|------|--------|-------------|---------------------|-----------|
+| **Sequence length** (s) | **O(s) to O(s²)** | **O(s²)** attention | O(s) per epoch | **The big one.** Attention computes an `s × s` matrix per head. 8K→16K = 4× more attention compute, 2× more activation memory. FlashAttention helps memory (→ O(s)) but NOT compute. |
+| **Batch size** (b) | O(b) | O(b) per step | O(1) per epoch | Linear in everything. Doubling batch = 2× memory, 2× compute/step, but half the steps. Total work per epoch is constant. |
+| **num_layers** (LoRA) | O(L) activations | Weak effect | Weak effect | More adapted layers = more gradients stored. But forward pass always runs ALL layers regardless. |
+| **LoRA rank** (r) | ~Negligible | ~Negligible | ~Negligible | **Cheapest knob.** LoRA matrices are tiny vs. the base model (`r=32` vs `d=1536`). Going from rank 8→32 barely moves the needle on memory or speed. |
+| **Training samples** (N) | O(1) — no effect | O(1) per step | O(N) total | More data = more steps = more wall-clock time. But each step costs the same. |
+| **Model size** (P) | O(P) | O(P) | O(P) | Linear in everything. 2B→4B ≈ 2× memory, 2× compute. |
+
+**Concrete examples from our project:**
+
+```text
+Sequence length (the quadratic killer):
+  max_seq_length 4K → 8K:   ~2-3× slower per step, ~2× more VRAM
+  max_seq_length 8K → 16K:  ~2-3× slower per step, ~2× more VRAM
+  We OOM'd on Colab T4 at 16K (tried to allocate 11 GB for lm_head logits)
+  Dropped to 8K → fits comfortably, zero data truncation (max sample = 6.4K tokens)
+
+LoRA rank (cheap to increase):
+  rank 8 → rank 32:  4× more trainable params, barely any extra memory or time
+  The LoRA matrices are so small relative to the base model that even rank 64
+  adds negligible overhead. This is the safest knob to turn up.
+
+Batch size (trades memory for speed):
+  batch_size 1, grad_accum 8:  low memory, 8 sequential forward passes per update
+  batch_size 2, grad_accum 4:  2× memory, same effective batch, ~30% faster (GPU parallelism)
+  batch_size 4, grad_accum 2:  4× memory, same effective batch, but may OOM on T4
+
+Training samples (linear and predictable):
+  100 samples × 2 epochs = 25 steps  (at effective batch 8)
+  955 samples × 2 epochs = 240 steps  → ~10× longer, same memory per step
+```
+
+**Why `grad_checkpoint` matters:**
+- Without: stores activations for ALL `L` layers → memory O(L)
+- With: stores only checkpoints, recomputes during backward → memory O(√L)
+- Cost: ~33% slower (one extra forward pass)
+- On 16GB Mac or tight T4: non-negotiable
+
+**Why padding wastes compute quadratically:**
+- With `packing=False`, a 2K-token sample padded to 8K wastes 75% of the sequence
+- Attention cost: 8192² = 67M vs 2048² = 4.2M → **16× more attention compute on padding**
+- This is why `packing=True` can give 2-3× speedups (but breaks message boundary masking)
+
 #### Training on 16GB Apple Silicon (The Hard Way)
 
 Apple Silicon uses **unified memory** — GPU and CPU share the same 16GB pool. Unlike CUDA which throws a clean `OutOfMemoryError`, exceeding memory on Metal causes macOS to swap to SSD. Since GPU memory access patterns are terrible for disk I/O, this freezes the entire machine — no crash, no error, just an unresponsive laptop for 30+ minutes.
 
 **The memory hierarchy** (most to least impact on memory):
 
-| Knob | Aggressive | Conservative | Impact |
-|------|-----------|-------------|--------|
-| `max_seq_length` | 16384 | **8192** | Biggest single factor. Sequence length × layers × hidden dim. 16K at 4B params will freeze your Mac. |
-| `num_layers` | -1 (all 36) | **8-16** | How many transformer layers get LoRA adapters. Top layers matter most for behavioral SFT. |
-| `rank` | 32 | **8-16** | LoRA matrix dimensionality. Lower rank = less memory, less capacity. 8 is the floor for tool-calling. |
-| `grad_checkpoint` | false | **true** | Recomputes activations during backward pass. ~30% slower, ~40% less memory. Non-negotiable on 16GB. |
-| `batch_size` | 2+ | **1** | Already at minimum. |
+| Knob | Aggressive | Conservative | Scaling | Impact |
+|------|-----------|-------------|---------|--------|
+| `max_seq_length` | 16384 | **8192** | **O(s²) attention** | Biggest factor. 16K→8K = 4× less attention memory. We OOM'd at 16K on Colab T4. |
+| `num_layers` | -1 (all) | **8-16** | O(L) activations | More adapted layers = more stored activations for backprop. |
+| `batch_size` | 2+ | **1** | O(b) | Linear. Already at minimum. Use grad_accumulation instead. |
+| `grad_checkpoint` | false | **true** | O(L) → O(√L) | Recomputes activations during backward. ~33% slower, dramatically less memory. |
+| `rank` | 32 | **8-16** | ~Negligible | LoRA matrices are tiny vs. base model. Cheapest knob to increase. |
 
 **What actually fits on 16GB M1 (MLX LoRA):**
 

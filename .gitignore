@@ -12,3 +12,4 @@ wheels/
 
 # Data
 data/output/individual/*
+nb/bbb/sft_results
