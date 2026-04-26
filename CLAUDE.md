@@ -4,109 +4,130 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Conference demo project for **"Agentic Systems in Practice: Applying AI to Investments"** — originally presented at Data Science Festival WinterFest 2025, now being extended for a follow-up conference talk.
+Conference demo project for Applied AI in equity investment research — presented across two talks at Data Science Festival:
 
-The system is a **two-stage pipeline** for automated equity investment research:
-1. **Research Agent** (`nb/winterfest/agent.ipynb`) — GPT-5.1-powered agent with MCP tools that generates structured research memos on target companies
-2. **Analyst Model** — A fine-tuned small language model (Qwen3-4B) that reads research memos and produces investment verdicts (`Strong Yes` / `Questionable` / `Strong No`) with chain-of-thought reasoning
+1. **WinterFest 2025** — Two-stage pipeline: GPT-5.1 research agent + fine-tuned Qwen3-4B analyst model
+2. **Big Birthday Bash 2026** — Teaching a small model to *be* the research agent itself via tool-calling SFT + RL
 
-### Current Conference Goal (Big Birthday Bash — BBB)
+*Kristof Rabay — Applied AI @ The Carlyle Group*
 
-Teach **Qwen3.5** (2B locally on Mac, 4B on GPU) to be the research agent itself via tool-calling fine-tuning + RL:
-1. **Teacher Agent** (`nb/bbb/_phase_1_teacher.ipynb`) — GPT-5.4 via Responses API with reasoning, generates training trajectories. DONE.
-2. **Data Generation** (`nb/bbb/_phase_2_data_gen.ipynb`) — Run teacher on ~200 companies, save full tool-calling trajectories
-3. **Baseline** (`nb/bbb/_phase_3_baseline.ipynb`) — Run raw Qwen3.5 with tools to establish "before" metrics
-4. **SFT** (`nb/bbb/_phase_4_sft.ipynb` + `_phase_4_sft_colab.ipynb`) — Fine-tune Qwen3.5-2B via Unsloth on Colab (free T4). MLX training failed on 16GB Mac (backward pass ~48 GB). Local notebook has MLX config generation + eval; Colab notebook does the actual training.
-5. **RL** (`nb/bbb/_phase_5_rl.ipynb`) — GRPO via ART (OpenPipe) to refine tool-calling behavior
+### Talk Thesis (BBB 2026)
+
+> Understanding how models get trained — SFT, RL, tool calling, masking — helps tremendously in how we *apply* them. This is Applied AI.
+
+The talk is educational code-showing (no live running), walking through building a custom agentic system from context engineering to RL. Format: ~35 min content + 5-10 min Q&A.
+
+### BBB Pipeline Status (as of April 2026)
+
+| Phase | Notebook | Status | Notes |
+|-------|----------|--------|-------|
+| 1. Teacher Agent | `_phase_1_teacher.ipynb` | **DONE** | GPT-5.4 via Responses API, tested on multiple tickers |
+| 2. Data Generation | `_phase_2_data_gen.ipynb` | **DONE** | 955 trajectories in `trajectories_sft.jsonl` |
+| 3. Baseline | `_phase_3_baseline.ipynb` | **DONE** | 5 MLX baseline runs, avg reward 3.40 |
+| 4. SFT | `_phase_4_sft_colab.ipynb` / `_kaggle` / `_mlx` | **DONE** | Trained on Colab+Kaggle (Unsloth). MLX training failed (48GB backward pass). Model weights saved but no quantitative eval against baseline. |
+| 5. RL | `_phase_5_rl.ipynb` | **SKELETON** | Demo notebook with GRPO config, reward function, TRL setup. Not run. TRL is single-turn only — full multi-turn needs ART (OpenPipe). |
 
 ### BBB Code Structure (`nb/bbb/`)
+
 - `tools.py` — Stock tool functions + auto-generated OpenAI Responses API schemas (single source of truth)
 - `agent.py` — Two async agent loops: `run_tool_calling_agent()` (Responses API for GPT-5.x) and `run_tool_calling_agent_chat()` (Chat Completions for local servers — Ollama, mlx-lm, llama-server)
-- `helpers__data_gen.py` — System prompt, ticker list, format conversion (Responses API → Hermes), truncation, quality filtering
+- `helpers__data_gen.py` — System prompt, ticker list (~200), format conversion (Responses API → Hermes), truncation, quality filtering
 - `helpers__inference.py` — `<tool_call>` parsing, local Unsloth agent loop, composite reward function
+- `birthday_bash_talk.md` — The talk outline (source of truth for presentation content)
 - Notebooks import from these shared modules
 
+### BBB Documentation (`docs/`)
+
+| Doc | Purpose |
+|-----|---------|
+| `takeaways_sft.md` | Consolidated SFT learnings — data, masking, max_seq_length, what broke |
+| `takeaways_rl.md` | Consolidated RL learnings — GRPO mechanics, reward engineering, benchmarks |
+| `research_sft_rl_benchmarks.md` | Citable SFT/RL deltas from papers (verified BFCL numbers) |
+| `research_reward_design.md` | Reward function patterns — simple + composite, with LLM-as-judge |
+| `research_grpo_explained.md` | Educational GRPO explainer — essay analogy, token→params, computation graph |
+| `research_financial_rl_rewards.md` | Survey of 13 papers with financial domain reward functions |
+| `research_reward_examples.md` | Production RL examples — Cursor, ART-E, RULER, reward hacking |
+| `grpo_learnings_winterfest.md` | GRPO experiment retrospective from Baseten H100 run |
+| `demo_cheatsheet.md` | Exact commands, notebooks, cells for each talk demo |
+
 ### Key Technical Decisions
-- **API:** OpenAI Responses API (not Chat Completions) for teacher; Chat Completions for local inference (mlx-lm, Ollama, llama-server)
-- **Tool schemas:** Auto-generated from function signatures via `_build_tool_schema()` — change the function, schema updates automatically
-- **SFT data:** Tool outputs must be truncated to ~500-800 tokens before training (standard practice — all major datasets do this). Raw yfinance responses are 2000-3000 tokens each, which wastes compute on masked tokens.
-- **max_seq_length:** 8192 for SFT (compress data to fit, don't expand window for zero-loss masked tokens)
-- **16GB Mac training limits:** MLX LoRA backward pass peaks at ~48 GB regardless of model size (tested 0.8B, 2B, 4B). Training is infeasible on 16GB Apple Silicon with any Qwen3.5 model — the backward pass overhead is constant, not proportional to model size. `mx.compile` JIT compilation also exceeds memory and causes kernel panics. **Use Unsloth on Colab for training, MLX for inference only.**
-- **Qwen3.5 Jinja template:** expects tool call `arguments` as dict, not JSON string. The `to_mlx_format()` function in the Phase 4 notebook handles this conversion.
+
+- **Model:** Qwen3.5-2B — trains in ~30 min on free Colab T4, serves locally on Mac via mlx_lm.server
+- **API:** OpenAI Responses API for teacher; Chat Completions for local inference
+- **Tool schemas:** Auto-generated from function signatures via `_build_tool_schema()`
+- **SFT data:** Tool outputs truncated to ~250 tokens (masked tokens = zero gradient = pure overhead)
+- **max_seq_length:** 8192 (compress data to fit; 4096 → NaN loss, 16384 → OOM)
+- **Training:** Unsloth on Colab/Kaggle. MLX for inference only (backward pass ~48GB on any Qwen3.5).
+- **RL:** TRL GRPOTrainer for single-turn, ART for multi-turn. GRPO from scratch can outperform SFT+RL (ToolRL finding).
+- **Qwen3.5 Jinja template:** expects tool call `arguments` as dict, not JSON string
 
 ### Qwen3.5 Inference Parameters (Critical)
-Thinking models require specific sampling parameters to avoid infinite reasoning loops:
-- **`temperature=0.6, top_p=0.95, presence_penalty=1.5`** — official Qwen3 recommendations for thinking mode
-- **Never use greedy decoding** (`temperature=0`) with thinking models — causes infinite repetition
-- **Never mention thinking/nothink in prompts for Qwen3.5** — the `/think` and `/nothink` soft switches are Qwen3-only. Qwen3.5 does not support them. Including meta-instructions about thinking in the system prompt causes the model to spiral into reasoning loops about whether it should be reasoning.
-- **`--prompt-cache-size 4`** when running mlx_lm.server on 16GB Apple Silicon — default of 10 causes OOM with concurrent requests
-- **Warm-up request required** after server start for thinking models — first request has 0% KV cache reuse and produces extremely long reasoning. Send a throwaway request to prime the cache before real work ([mlx-lm#1042](https://github.com/ml-explore/mlx-lm/pull/1042))
 
-Full plan: `docs/tutorial_content/claude_plan.md`
+- **`temperature=0.6, top_p=0.95, presence_penalty=1.5`** — official Qwen3 thinking mode settings
+- **Never use greedy decoding** (`temperature=0`) with thinking models — infinite loops
+- **Never mention thinking/nothink in prompts for Qwen3.5** — Qwen3.5 doesn't support `/think` `/nothink` soft switches (Qwen3-only). Meta-instructions cause spiraling.
+- **`--prompt-cache-size 4`** on 16GB Mac — default 10 causes OOM
+- **Warm-up request required** after server start — cold KV cache causes 0% reuse and long reasoning ([mlx-lm#1042](https://github.com/ml-explore/mlx-lm/pull/1042))
 
 ## Commands
 
 ```bash
 # Environment setup
-uv sync                                    # Install all dependencies
-python nb/winterfest/tools/mcp/stock_server.py  # Start MCP server on port 8001 (must be running before winterfest agent notebook)
+uv sync
 
-# WinterFest notebooks (original talk)
+# Local model serving (inference on Mac)
+uv run mlx_lm.server --model mlx-community/Qwen3.5-2B-4bit --port 8080 \
+    --chat-template-args '{"enable_thinking":true}' --prompt-cache-size 4
+
+# WinterFest notebooks
+python nb/winterfest/tools/mcp/stock_server.py  # MCP server (port 8001, must run first)
 jupyter notebook nb/winterfest/agent.ipynb
-jupyter notebook nb/winterfest/training_data_generator.ipynb
-jupyter notebook nb/winterfest/training_recipe.ipynb
 
-# BBB notebooks (new talk — tool-calling fine-tuning + RL)
-jupyter notebook nb/bbb/_phase_1_teacher.ipynb
-jupyter notebook nb/bbb/_phase_2_data_gen.ipynb
-jupyter notebook nb/bbb/_phase_3_baseline.ipynb
-jupyter notebook nb/bbb/_phase_4_sft.ipynb
-jupyter notebook nb/bbb/_phase_5_rl.ipynb
+# BBB notebooks
+jupyter notebook nb/bbb/_phase_1_teacher.ipynb    # Teacher agent (GPT-5.4)
+jupyter notebook nb/bbb/_phase_2_data_gen.ipynb    # Bulk data generation
+jupyter notebook nb/bbb/_phase_3_baseline.ipynb    # Raw model baseline (MLX)
+jupyter notebook nb/bbb/_phase_4_sft_colab.ipynb   # SFT training (Colab)
+jupyter notebook nb/bbb/_phase_4_sft_kaggle.ipynb  # SFT training (Kaggle)
+jupyter notebook nb/bbb/_phase_4_sft_mlx.ipynb     # MLX config + eval (Mac)
+jupyter notebook nb/bbb/_phase_5_rl.ipynb          # RL via GRPO (demo skeleton)
 ```
 
 ## Architecture Details
 
+### WinterFest Pipeline
+- **Research Agent** (`nb/winterfest/agent.ipynb`) — `openai-agents` SDK with `gpt-5.1`, MCP stock tools, web search, file search, code interpreter
+- **Training Data** (`nb/winterfest/training_data_generator.ipynb`) — ~5,000 synthetic verdicts via `gpt-4.1-mini`
+- **Analyst Model** (`nb/winterfest/training_recipe.ipynb`) — Unsloth SFT on `Qwen3-4B-Thinking`
+
+### BBB Pipeline
+- **Teacher** — GPT-5.4 via Responses API with reasoning summaries, direct yfinance tool calls (no MCP)
+- **Data** — 955 trajectories, Responses API → Hermes format conversion, tool output truncation to ~250 tokens
+- **SFT** — Unsloth on Colab/Kaggle, `train_on_responses_only` masking, ~36.5% tokens get gradient
+- **RL** — TRL GRPOTrainer (single-turn scoring), reward function scores tool-calling quality
+
 ### MCP Stock Server (`nb/winterfest/tools/mcp/stock_server.py`)
-- Built with `fastmcp`, runs on HTTP port 8001
-- 4 tools via Yahoo Finance (`yfinance`): `get_stock_news`, `get_financials`, `get_price_history`, `get_recommendations`
-- The agent notebook connects to this as an MCP tool source — the server **must be running** before executing the agent
-
-### Research Agent (`nb/winterfest/agent.ipynb`)
-- Uses `openai-agents` SDK (OpenAI's agentic framework) with `gpt-5.1`
-- Tools: Web Search, File Search (RAG over `data/winterfest/docs/`), Code Interpreter, MCP stock tools
-- Output: Structured markdown reports covering Competition, Customers, Financials, Growth Opportunities → saved to `data/winterfest/output/`
-- Streaming helper in `nb/winterfest/helpers/llm_helpers.py` handles all event types from the agent SDK
-
-### Training Data Pipeline (`nb/winterfest/training_data_generator.ipynb`)
-- Generates ~5,000 synthetic examples using `gpt-4.1-mini`
-- Each example: fictional company report → expert investment verdict with reasoning
-- Output format: JSONL files in `data/winterfest/` (main dataset: `data/winterfest/training_data_examples_all.jsonl`)
-- Includes a hallucination detection dataset variant
-
-### Fine-Tuning (`nb/winterfest/training_recipe.ipynb`)
-- Base model: `unsloth/Qwen3-4B-Thinking` (4-bit quantized)
-- Framework: Unsloth with LoRA adapters
-- Training format: model outputs `<think>` block (chain-of-thought) followed by structured verdict
-- Training history tracked in `data/winterfest/training_history.csv`
+- Built with `fastmcp`, HTTP port 8001
+- 4 yfinance tools: `get_stock_news`, `get_financials`, `get_price_history`, `get_recommendations`
+- Used by WinterFest agent only — BBB uses direct tool calls via `tools.py`
 
 ## Key Dependencies
 
 - `openai` + `openai-agents[viz]` — Agent framework and OpenAI API
 - `fastmcp` — MCP server framework
-- `yfinance` (pinned to 0.2.62) — Stock data source for MCP tools
-- `unsloth` — SFT training (used in Colab/GPU notebooks, not in pyproject.toml)
-- `tiktoken` — Token counting for context window management
-- `tenacity` + `limiter` — Rate limiting and retry logic for API calls
+- `yfinance` (pinned to 0.2.62) — Stock data source
+- `unsloth` — SFT/RL training (Colab/GPU only, not in pyproject.toml)
+- `tiktoken` — Token counting for truncation
+- `tenacity` + `limiter` — Rate limiting and retry logic
 
 ## Environment
 
 - Python 3.11 (managed via `uv`)
 - Requires `.env` with `OPENAI_API_KEY` and `VECTOR_STORE_ID`
-- The vector store ID points to an OpenAI-hosted file search index over documents in `data/docs/`
 
 ## Important Conventions
 
-- Research memos must follow the structured markdown format (Competition / Customers / Financials / Growth Opportunities) — this is the contract between Stage 1 output and Stage 2 input
-- Training data uses chat-completion format with `<think>` tags for reasoning traces
-- The MCP server uses HTTP transport (not stdio) — relevant when integrating with different agent frameworks
-- Individual company output files in `data/winterfest/output/individual/` are gitignored
+- Training data uses Hermes chat format with `<think>` tags for reasoning traces
+- Tool schemas auto-generated — never hand-write JSON schemas
+- The talk outline (`nb/bbb/birthday_bash_talk.md`) is the source of truth for all presentation content
+- All research is saved in `docs/` with full citations — verify against original papers before presenting
